@@ -1917,6 +1917,7 @@ func (s sqlRegexp) sqlRegexpDumpTriggerCheck(cfg *traceevent.DumpTriggerConfig) 
 
 // Parse parses a query string to raw ast.StmtNode.
 func (s *session) Parse(ctx context.Context, sql string) ([]ast.StmtNode, error) {
+	s.resetPendingRUV2SessionParserTotal()
 	logutil.Logger(ctx).Debug("parse", zap.String("sql", sql))
 	parseStartTime := time.Now()
 
@@ -1949,6 +1950,8 @@ func (s *session) Parse(ctx context.Context, sql string) ([]ast.StmtNode, error)
 		session_metrics.SessionExecuteParseDurationInternal.Observe(durParse.Seconds())
 	} else {
 		session_metrics.SessionExecuteParseDurationGeneral.Observe(durParse.Seconds())
+		metrics.RUV2SessionParserTotal.Inc()
+		s.sessionVars.RUV2PendingSessionParserTotal.Add(1)
 	}
 	for _, warn := range warns {
 		s.sessionVars.StmtCtx.AppendWarning(util.SyntaxWarn(warn))
@@ -1959,6 +1962,7 @@ func (s *session) Parse(ctx context.Context, sql string) ([]ast.StmtNode, error)
 // ParseWithParams parses a query string, with arguments, to raw ast.StmtNode.
 // Note that it will not do escaping if no variable arguments are passed.
 func (s *session) ParseWithParams(ctx context.Context, sql string, args ...any) (ast.StmtNode, error) {
+	s.resetPendingRUV2SessionParserTotal()
 	var err error
 	if len(args) > 0 {
 		sql, err = sqlescape.EscapeSQL(sql, args...)
@@ -1994,6 +1998,8 @@ func (s *session) ParseWithParams(ctx context.Context, sql string, args ...any) 
 		session_metrics.SessionExecuteParseDurationInternal.Observe(durParse.Seconds())
 	} else {
 		session_metrics.SessionExecuteParseDurationGeneral.Observe(durParse.Seconds())
+		metrics.RUV2SessionParserTotal.Inc()
+		s.sessionVars.RUV2PendingSessionParserTotal.Add(1)
 	}
 	for _, warn := range warns {
 		s.sessionVars.StmtCtx.AppendWarning(util.SyntaxWarn(warn))
@@ -2008,6 +2014,12 @@ func (s *session) ParseWithParams(ctx context.Context, sql string, args ...any) 
 		}
 	}
 	return stmts[0], nil
+}
+
+func (s *session) resetPendingRUV2SessionParserTotal() {
+	// Standalone Parse/ParseWithParams calls may never reach ExecuteStmt(), so
+	// clear any leftover parser count before starting a new statement parse.
+	s.sessionVars.RUV2PendingSessionParserTotal.Store(0)
 }
 
 // GetAdvisoryLock acquires an advisory lock of lockName.
@@ -2411,6 +2423,15 @@ func (s *session) executeStmtImpl(ctx context.Context, stmtNode ast.StmtNode) (s
 	// Some executions are done in compile stage, so we reset them before compile.
 	if err := executor.ResetContextOfStmt(s, stmtNode); err != nil {
 		return nil, err
+	}
+	ruv2Metrics := execdetails.RUV2MetricsFromContext(ctx)
+	if ruv2Metrics == nil {
+		ruv2Metrics = execdetails.NewRUV2Metrics()
+		ctx = context.WithValue(ctx, execdetails.RUV2MetricsCtxKey, ruv2Metrics)
+	}
+	sessVars.RUV2Metrics = ruv2Metrics
+	if pending := sessVars.RUV2PendingSessionParserTotal.Swap(0); pending > 0 && ruv2Metrics != nil {
+		ruv2Metrics.AddSessionParserTotal(pending)
 	}
 
 	if execStmt, ok := stmtNode.(*ast.ExecuteStmt); ok {
@@ -3253,6 +3274,7 @@ func (s *session) GetDistSQLCtx() *distsqlctx.DistSQLContext {
 			OriginalSQL:            sc.OriginalSQL,
 			KVVars:                 vars.KVVars,
 			KvExecCounter:          sc.KvExecCounter,
+			RUV2Metrics:            vars.RUV2Metrics,
 			SessionMemTracker:      vars.MemTracker,
 
 			Location:         sc.TimeZone(),
@@ -4958,6 +4980,10 @@ func (s *session) recordOnTransactionExecution(err error, counter int, duration 
 				session_metrics.StatementPerTransactionOptimisticOKGeneral.Observe(float64(counter))
 			}
 		}
+	}
+	metrics.RUV2TxnCnt.Inc()
+	if s.sessionVars.RUV2Metrics != nil {
+		s.sessionVars.RUV2Metrics.AddTxnCnt(1)
 	}
 }
 

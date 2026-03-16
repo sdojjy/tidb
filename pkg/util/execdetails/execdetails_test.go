@@ -16,10 +16,12 @@ package execdetails
 
 import (
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/pingcap/tidb/pkg/config"
 	"github.com/pingcap/tidb/pkg/kv"
 	"github.com/pingcap/tipb/go-tipb"
 	"github.com/stretchr/testify/require"
@@ -313,6 +315,82 @@ func TestCopRuntimeStats(t *testing.T) {
 	require.Equal(t, "", zeroScanDetail.String())
 	require.Equal(t, "", zeroTimeDetail.String())
 	require.Equal(t, "", zeroCopStats.String())
+}
+
+func TestRUV2MetricsSnapshotCalculateRUValues(t *testing.T) {
+	original := config.GetGlobalConfig()
+	t.Cleanup(func() {
+		if original != nil {
+			config.StoreGlobalConfig(original)
+		}
+	})
+
+	cfg := config.NewConfig()
+	cfg.RUV2 = config.DefaultRUV2Config()
+	config.StoreGlobalConfig(cfg)
+
+	snapshot := RUV2MetricsSnapshot{
+		ResultChunkRows:         1000,
+		ExecutorL1:              map[string]int64{"TableReader": 5, "Projection": 7},
+		ExecutorL2:              map[string]int64{"Selection": 11},
+		ExecutorL3:              map[string]int64{"HashJoin": 13},
+		ExecutorL5InsertRows:    17,
+		PlanCnt:                 19,
+		PlanDeriveStatsPaths:    23,
+		ResourceManagerReadCnt:  29,
+		ResourceManagerWriteCnt: 31,
+		SessionParserTotal:      37,
+		TxnCnt:                  41,
+		TiKVKVEngineCacheMiss:   43,
+		TiKVCoprocessorExecutorWorkTotal: map[string]int64{
+			"BatchSelection": 53,
+			"BatchTopN":      59,
+		},
+		TiKVCoprocessorExecutorIterations: 61,
+		TiKVCoprocessorResponseBytes:      67,
+		TiKVRaftstoreStoreWriteTriggerWB:  71,
+		TiKVStorageProcessedKeysBatchGet:  73,
+		TiKVStorageProcessedKeysGet:       79,
+		TiKVRU:                            157258,
+	}
+
+	tidbRU := snapshot.CalculateRUValues()
+	tikvRU := snapshot.TiKVRU
+	totalRU := tidbRU + tikvRU
+	require.Equal(t, int64(114198), tidbRU)
+	require.Equal(t, int64(157258), tikvRU)
+	require.Equal(t, int64(271456), totalRU)
+}
+
+func TestFormatRUV2MetricsIncludesRUValuesFirst(t *testing.T) {
+	original := config.GetGlobalConfig()
+	t.Cleanup(func() {
+		if original != nil {
+			config.StoreGlobalConfig(original)
+		}
+	})
+
+	cfg := config.NewConfig()
+	cfg.RUV2 = config.DefaultRUV2Config()
+	config.StoreGlobalConfig(cfg)
+
+	formatted := FormatRUV2Metrics(RUV2MetricsSnapshot{
+		ResultChunkRows:                  1000,
+		ResourceManagerWriteCnt:          20,
+		TiKVCoprocessorExecutorWorkTotal: map[string]int64{"BatchTopN": 10},
+		TiKVRU:                           10987,
+	})
+
+	require.Contains(t, formatted, "tidb_ru:")
+	require.Contains(t, formatted, "tikv_ru:")
+	require.Contains(t, formatted, "total_ru:")
+	require.True(t, strings.HasPrefix(formatted, "total_ru:"))
+
+	parts := strings.Split(formatted, ", ")
+	require.Len(t, parts, 6)
+	require.Equal(t, "total_ru:19737", parts[0])
+	require.Equal(t, "tidb_ru:8750", parts[1])
+	require.Equal(t, "tikv_ru:10987", parts[2])
 }
 
 func TestCopRuntimeStatsForTiFlash(t *testing.T) {

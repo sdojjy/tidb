@@ -17,12 +17,14 @@ package exec
 import (
 	"context"
 	"reflect"
+	stdatomic "sync/atomic"
 	"time"
 
 	"github.com/ngaut/pools"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/tidb/pkg/domain"
 	"github.com/pingcap/tidb/pkg/expression"
+	"github.com/pingcap/tidb/pkg/metrics"
 	"github.com/pingcap/tidb/pkg/parser"
 	"github.com/pingcap/tidb/pkg/sessionctx"
 	"github.com/pingcap/tidb/pkg/sessionctx/stmtctx"
@@ -37,6 +39,71 @@ import (
 	"github.com/pingcap/tidb/pkg/util/tracing"
 	"go.uber.org/atomic"
 )
+
+// nextIOAcc accumulates input volume for a single Executor.Next() invocation.
+type nextIOAcc struct {
+	inRows  int64
+	inCells int64
+}
+
+// addInput adds rows and cells (rows*cols) into the accumulator.
+func (a *nextIOAcc) addInput(rows, cols int) {
+	if a == nil || rows <= 0 || cols <= 0 {
+		return
+	}
+	stdatomic.AddInt64(&a.inRows, int64(rows))
+	stdatomic.AddInt64(&a.inCells, int64(rows*cols))
+}
+
+type nextIOAccKeyType struct{}
+
+var nextIOAccKey nextIOAccKeyType
+
+type ruv2ExecutorMetric struct {
+	level    int
+	label    string
+	useCells bool
+}
+
+var ruv2ExecutorMetricByType = map[string]ruv2ExecutorMetric{
+	"*executor.BatchPointGetExec":   {level: 1, label: "BatchPointGetExec", useCells: true},
+	"*executor.PointGetExecutor":    {level: 1, label: "PointGetExecutor", useCells: true},
+	"*executor.LimitExec":           {level: 1, label: "LimitExec", useCells: true},
+	"*aggregate.HashAggExec":        {level: 2, label: "HashAggExec", useCells: false},
+	"*executor.HashJoinExec":        {level: 2, label: "HashJoinExec", useCells: false},
+	"*executor.IndexLookUpJoin":     {level: 2, label: "IndexLookUpJoin", useCells: true},
+	"*executor.IndexLookUpExecutor": {level: 2, label: "IndexLookUpExecutor", useCells: false},
+	"*executor.IndexReaderExecutor": {level: 2, label: "IndexReaderExecutor", useCells: false},
+	"*executor.MemTableReaderExec":  {level: 2, label: "MemTableReaderExec", useCells: false},
+	"*executor.SelectionExec":       {level: 2, label: "SelectionExec", useCells: false},
+	"*executor.TableDualExec":       {level: 2, label: "TableDualExec", useCells: false},
+	"*executor.TableReaderExecutor": {level: 2, label: "TableReaderExecutor", useCells: false},
+	"*executor.UnionScanExec":       {level: 2, label: "UnionScanExec", useCells: false},
+	"*executor.SelectLockExec":      {level: 2, label: "SelectLockExec", useCells: true},
+	"*executor.SortExec":            {level: 3, label: "SortExec", useCells: true},
+	"*aggregate.StreamAggExec":      {level: 3, label: "StreamAggExec", useCells: false},
+}
+
+func addRUV2ExecutorMetric(ctx context.Context, execType string, useCells bool, delta int64) {
+	if delta == 0 {
+		return
+	}
+	info, ok := ruv2ExecutorMetricByType[execType]
+	if !ok || info.useCells != useCells {
+		return
+	}
+	switch info.level {
+	case 1:
+		metrics.RUV2ExecutorL1.WithLabelValues(info.label).Add(float64(delta))
+	case 2:
+		metrics.RUV2ExecutorL2.WithLabelValues(info.label).Add(float64(delta))
+	case 3:
+		metrics.RUV2ExecutorL3.WithLabelValues(info.label).Add(float64(delta))
+	}
+	if ruv2Metrics := execdetails.RUV2MetricsFromContext(ctx); ruv2Metrics != nil {
+		ruv2Metrics.AddExecutorMetric(info.level, info.label, delta)
+	}
+}
 
 // Executor is the physical implementation of an algebra operator.
 //
@@ -456,11 +523,41 @@ func Next(ctx context.Context, e Executor, req *chunk.Chunk) (err error) {
 	r, ctx := tracing.StartRegionEx(ctx, reflect.TypeOf(e).String()+".Next")
 	defer r.End()
 
+	parentAcc, _ := ctx.Value(nextIOAccKey).(*nextIOAcc)
+	myAcc := &nextIOAcc{}
+	ctx = context.WithValue(ctx, nextIOAccKey, myAcc)
+
 	e.RegisterSQLAndPlanInExecForTopProfiling()
 	err = e.Next(ctx, req)
 
 	if err != nil {
 		return err
+	}
+
+	outRows := req.NumRows()
+	outCols := req.NumCols()
+	if parentAcc != nil {
+		parentAcc.addInput(outRows, outCols)
+	}
+
+	execType := reflect.TypeOf(e).String()
+	inRows := stdatomic.LoadInt64(&myAcc.inRows)
+	inCells := stdatomic.LoadInt64(&myAcc.inCells)
+	outCells := int64(0)
+	if outRows > 0 && outCols > 0 {
+		outCells = int64(outRows * outCols)
+	}
+	if inRows != 0 {
+		addRUV2ExecutorMetric(ctx, execType, false, inRows)
+	}
+	if outRows != 0 {
+		addRUV2ExecutorMetric(ctx, execType, false, int64(outRows))
+	}
+	if inCells != 0 {
+		addRUV2ExecutorMetric(ctx, execType, true, inCells)
+	}
+	if outCells != 0 {
+		addRUV2ExecutorMetric(ctx, execType, true, outCells)
 	}
 	// recheck whether the session/query is killed during the Next()
 	return e.HandleSQLKillerSignal()

@@ -25,6 +25,7 @@ import (
 	"github.com/pingcap/tidb/pkg/parser/ast"
 	"github.com/pingcap/tidb/pkg/sessionctx/slowlogrule"
 	"github.com/pingcap/tidb/pkg/sessionctx/variable"
+	"github.com/pingcap/tidb/pkg/util/execdetails"
 	"github.com/pingcap/tidb/pkg/util/logutil"
 	"github.com/tikv/client-go/v2/util"
 	"go.uber.org/zap"
@@ -222,6 +223,11 @@ func SetSlowLogItems(a *ExecStmt, txnTS uint64, hasMoreResults bool, items *vari
 	} else {
 		ruDetails = util.NewRUDetails()
 	}
+	var ruv2Snapshot execdetails.RUV2MetricsSnapshot
+	if sessVars.RUV2Metrics != nil {
+		ruv2Snapshot = sessVars.RUV2Metrics.Snapshot()
+		ruv2Snapshot.TiKVRU = ruDetails.TiKVRUV2()
+	}
 
 	binaryPlan := ""
 	if variable.GenerateBinaryPlan.Load() {
@@ -260,6 +266,7 @@ func SetSlowLogItems(a *ExecStmt, txnTS uint64, hasMoreResults bool, items *vari
 	items.Warnings = variable.CollectWarningsForSlowLog(stmtCtx)
 	items.ResourceGroupName = stmtCtx.ResourceGroupName
 	items.RUDetails = ruDetails
+	items.RUV2Metrics = ruv2Snapshot
 	items.CPUUsages = sessVars.SQLCPUUsages.GetCPUUsages()
 	items.StorageKV = stmtCtx.IsTiKV.Load()
 	items.StorageMPP = stmtCtx.IsTiFlash.Load()

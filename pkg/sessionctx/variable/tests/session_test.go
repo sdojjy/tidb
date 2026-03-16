@@ -364,6 +364,7 @@ func TestSlowLogFormat(t *testing.T) {
 	seVar.StmtCtx.ResourceGroupName = logItems.ResourceGroupName
 	ctx := context.WithValue(context.Background(), execdetails.StmtExecDetailKey,
 		&execdetails.StmtExecDetails{WriteSQLRespDuration: logItems.WriteSQLRespTotal})
+	seVar.RUV2Metrics = execdetails.NewRUV2Metrics()
 	actual := executor.PrepareSlowLogItemsForRules(ctx, vardef.GlobalSlowLogRules.Load(), seVar)
 	childCtx := context.WithValue(ctx, util.ExecDetailsKey, &tikvExecDetail)
 	executor.CompleteSlowLogItemsForRules(childCtx, seVar, actual)
@@ -406,7 +407,7 @@ func compareSlowLogItems(t *testing.T, expected, actual *variable.SlowQueryLogIt
 
 	// Some fields are hard to mock, so we skip them.
 	skipFields := []string{"KeyspaceID", "KeyspaceName", "TimeTotal", "Prepared", "ResultRows", "ResultRows", "Plan", "BinaryPlan",
-		"UsedStats", "CopTasks", "RewriteInfo", "ExecRetryTime", "Warnings", "RUDetails", "MemMax", "DiskMax", "StorageKV"}
+		"UsedStats", "CopTasks", "RewriteInfo", "ExecRetryTime", "Warnings", "RUDetails", "RUV2Metrics", "MemMax", "DiskMax", "StorageKV"}
 	skipFieldsFunc := func(res string, fields []string) bool {
 		for _, f := range fields {
 			if res == f {

@@ -449,22 +449,30 @@ func (p *baseTxnContextProvider) GetSnapshotWithStmtForUpdateTS() (kv.Snapshot, 
 // getSnapshotByTS get snapshot from store according to the snapshotTS and set the transaction related
 // options before return
 func (p *baseTxnContextProvider) getSnapshotByTS(snapshotTS uint64) (kv.Snapshot, error) {
-	txn, err := p.sctx.Txn(false)
+	kvTxn, err := p.sctx.Txn(false)
 	if err != nil {
 		return nil, err
 	}
 
-	txnCtx := p.sctx.GetSessionVars().TxnCtx
+	sessVars := p.sctx.GetSessionVars()
+	ruv2Interceptor := txn.NewStorageProcessedKeysRUV2RPCInterceptor(sessVars.RUV2Metrics)
+	txnCtx := sessVars.TxnCtx
 
 	var snapshot kv.Snapshot
-	if txn.Valid() && txnCtx.StartTS == txnCtx.GetForUpdateTS() && txnCtx.StartTS == snapshotTS {
-		snapshot = txn.GetSnapshot()
+	if kvTxn.Valid() && txnCtx.StartTS == txnCtx.GetForUpdateTS() && txnCtx.StartTS == snapshotTS {
+		if ruv2Interceptor != nil {
+			kvTxn.SetOption(kv.RPCInterceptor, ruv2Interceptor)
+		}
+		snapshot = kvTxn.GetSnapshot()
 	} else {
 		snapshot = internal.GetSnapshotWithTS(
 			p.sctx,
 			snapshotTS,
 			temptable.SessionSnapshotInterceptor(p.sctx, p.infoSchema),
 		)
+		if ruv2Interceptor != nil {
+			snapshot.SetOption(kv.RPCInterceptor, ruv2Interceptor)
+		}
 	}
 	snapshot.SetOption(kv.ReplicaRead, p.sctx.GetSessionVars().GetReplicaRead())
 

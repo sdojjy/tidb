@@ -2401,6 +2401,17 @@ func (cc *clientConn) writeChunks(ctx context.Context, rs resultset.ResultSet, b
 		//nolint:forcetypeassert
 		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
 	}
+	totalRows := 0
+	defer func() {
+		metrics.RUV2ResultChunkRows.Add(float64(totalRows * len(rs.Columns())))
+		ruv2Metrics := execdetails.RUV2MetricsFromContext(ctx)
+		if ruv2Metrics == nil {
+			ruv2Metrics = cc.ctx.GetSessionVars().RUV2Metrics
+		}
+		if ruv2Metrics != nil {
+			ruv2Metrics.AddResultChunkRows(int64(totalRows) * int64(len(rs.Columns())))
+		}
+	}()
 	for {
 		failpoint.Inject("fetchNextErr", func(value failpoint.Value) {
 			//nolint:forcetypeassert
@@ -2447,6 +2458,7 @@ func (cc *clientConn) writeChunks(ctx context.Context, rs resultset.ResultSet, b
 		if rowCount == 0 {
 			break
 		}
+		totalRows += rowCount
 		validNextCount++
 		firstNext = false
 		reg := trace.StartRegion(ctx, "WriteClientConn")

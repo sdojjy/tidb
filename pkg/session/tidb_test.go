@@ -64,6 +64,29 @@ func TestSysSessionPoolGoroutineLeak(t *testing.T) {
 	wg.Wait()
 }
 
+func TestRUV2SessionParserTotalDoesNotLeakAcrossStandaloneParse(t *testing.T) {
+	store, dom := CreateStoreAndBootstrap(t)
+	defer func() { require.NoError(t, store.Close()) }()
+	defer dom.Close()
+
+	se, err := createSession(store)
+	require.NoError(t, err)
+
+	_, err = se.ParseWithParams(context.Background(), "select 1")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), se.sessionVars.RUV2PendingSessionParserTotal.Load())
+
+	stmt, err := se.ParseWithParams(context.Background(), "set @a=1")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), se.sessionVars.RUV2PendingSessionParserTotal.Load())
+
+	_, err = se.ExecuteStmt(context.Background(), stmt)
+	require.NoError(t, err)
+	require.Zero(t, se.sessionVars.RUV2PendingSessionParserTotal.Load())
+	require.NotNil(t, se.sessionVars.RUV2Metrics)
+	require.Equal(t, int64(1), se.sessionVars.RUV2Metrics.Snapshot().SessionParserTotal)
+}
+
 func TestSchemaCacheSizeVar(t *testing.T) {
 	store, err := mockstore.NewMockStore(mockstore.WithStoreType(mockstore.EmbedUnistore))
 	require.NoError(t, err)

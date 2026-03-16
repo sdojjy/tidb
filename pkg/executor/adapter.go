@@ -1590,6 +1590,7 @@ func (a *ExecStmt) FinishExecuteStmt(txnTS uint64, err error, hasMoreResults boo
 		sessVars.StmtCtx.SetPlan(a.Plan)
 	}
 
+	a.recordInsertRows2Metrics()
 	a.updateNetworkTrafficStatsAndMetrics()
 	// `LowSlowQuery` and `SummaryStmt` must be called before recording `PrevStmt`.
 	a.LogSlowQuery(txnTS, succ, hasMoreResults)
@@ -1673,6 +1674,23 @@ func (a *ExecStmt) recordAffectedRows2Metrics() {
 		case "NTDML-Replace":
 			metrics.AffectedRowsCounterNTDMLReplace.Add(float64(affectedRows))
 		}
+	}
+}
+
+func (a *ExecStmt) recordInsertRows2Metrics() {
+	sessVars := a.Ctx.GetSessionVars()
+	if sessVars.StmtCtx.StmtType != "Insert" {
+		return
+	}
+
+	affectedRows := sessVars.StmtCtx.AffectedRows()
+	if affectedRows <= 0 {
+		return
+	}
+
+	metrics.RUV2ExecutorL5InsertRows.Add(float64(affectedRows))
+	if sessVars.RUV2Metrics != nil {
+		sessVars.RUV2Metrics.AddExecutorL5InsertRows(int64(affectedRows))
 	}
 }
 

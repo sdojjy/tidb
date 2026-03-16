@@ -136,6 +136,8 @@ const (
 	SlowLogWRU = "Request_unit_write"
 	// SlowLogWaitRUDuration is the total duration for kv requests to wait available request-units.
 	SlowLogWaitRUDuration = "Time_queued_by_rc"
+	// SlowLogRUV2Metrics is the RU v2 metrics for the statement.
+	SlowLogRUV2Metrics = "RUv2_metrics"
 	// SlowLogTidbCPUUsageDuration is the total tidb cpu usages.
 	SlowLogTidbCPUUsageDuration = "Tidb_cpu_time"
 	// SlowLogTikvCPUUsageDuration is the total tikv cpu usages.
@@ -297,6 +299,7 @@ type SlowQueryLogItems struct {
 	// resource information
 	ResourceGroupName string
 	RUDetails         *util.RUDetails
+	RUV2Metrics       execdetails.RUV2MetricsSnapshot
 	MemMax            int64
 	DiskMax           int64
 	CPUUsages         ppcpuusage.CPUUsages
@@ -543,6 +546,9 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	}
 	if waitRUDuration := logItems.RUDetails.RUWaitDuration(); waitRUDuration > time.Duration(0) {
 		writeSlowLogItem(&buf, SlowLogWaitRUDuration, strconv.FormatFloat(waitRUDuration.Seconds(), 'f', -1, 64))
+	}
+	if formatted := execdetails.FormatRUV2Metrics(logItems.RUV2Metrics); len(formatted) > 0 {
+		writeSlowLogItem(&buf, SlowLogRUV2Metrics, formatted)
 	}
 	if logItems.CPUUsages.TidbCPUTime > time.Duration(0) {
 		writeSlowLogItem(&buf, SlowLogTidbCPUUsageDuration, strconv.FormatFloat(logItems.CPUUsages.TidbCPUTime.Seconds(), 'f', -1, 64))

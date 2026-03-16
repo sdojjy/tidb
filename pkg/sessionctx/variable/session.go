@@ -53,6 +53,7 @@ import (
 	"github.com/pingcap/tidb/pkg/util/chunk"
 	"github.com/pingcap/tidb/pkg/util/dbterror/plannererrors"
 	"github.com/pingcap/tidb/pkg/util/disk"
+	"github.com/pingcap/tidb/pkg/util/execdetails"
 	"github.com/pingcap/tidb/pkg/util/intest"
 	"github.com/pingcap/tidb/pkg/util/kvcache"
 	"github.com/pingcap/tidb/pkg/util/logutil"
@@ -909,6 +910,10 @@ type SessionVars struct {
 
 	// StmtCtx holds variables for current executing statement.
 	StmtCtx *stmtctx.StatementContext
+	// RUV2Metrics stores statement-level RU v2 metrics for current statement.
+	RUV2Metrics *execdetails.RUV2Metrics
+	// RUV2PendingSessionParserTotal stores session parser count before statement context reset.
+	RUV2PendingSessionParserTotal atomic.Int64
 
 	// RefCountOfStmtCtx indicates the reference count of StmtCtx. When the
 	// StmtCtx is accessed by other sessions, e.g. oom-alarm-handler/expensive-query-handler, add one first.

@@ -69,6 +69,8 @@ const (
 	TpFKCascadeRuntimeStats
 	// TpRURuntimeStats is the tp for RURuntimeStats
 	TpRURuntimeStats
+	// TpRUV2RuntimeStats is the tp for RUV2RuntimeStats
+	TpRUV2RuntimeStats
 )
 
 // RuntimeStats is used to express the executor runtime information.
@@ -1013,4 +1015,41 @@ func (e *RURuntimeStats) Merge(other RuntimeStats) {
 // Tp implements the RuntimeStats interface.
 func (*RURuntimeStats) Tp() int {
 	return TpRURuntimeStats
+}
+
+// RUV2RuntimeStats is a wrapper of statement-level RU v2 metrics.
+type RUV2RuntimeStats struct {
+	Snapshot RUV2MetricsSnapshot
+}
+
+// String implements the RuntimeStats interface.
+func (e *RUV2RuntimeStats) String() string {
+	formatted := FormatRUV2Metrics(e.Snapshot)
+	if formatted == "" {
+		return ""
+	}
+	return "ruv2:{" + formatted + "}"
+}
+
+// Clone implements the RuntimeStats interface.
+func (e *RUV2RuntimeStats) Clone() RuntimeStats {
+	if e == nil {
+		return &RUV2RuntimeStats{}
+	}
+	return &RUV2RuntimeStats{Snapshot: e.Snapshot}
+}
+
+// Merge implements the RuntimeStats interface.
+func (e *RUV2RuntimeStats) Merge(other RuntimeStats) {
+	if e == nil {
+		return
+	}
+	if tmp, ok := other.(*RUV2RuntimeStats); ok {
+		e.Snapshot.Merge(tmp.Snapshot)
+	}
+}
+
+// Tp implements the RuntimeStats interface.
+func (*RUV2RuntimeStats) Tp() int {
+	return TpRUV2RuntimeStats
 }
