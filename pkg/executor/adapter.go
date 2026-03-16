@@ -1591,6 +1591,7 @@ func (a *ExecStmt) FinishExecuteStmt(txnTS uint64, err error, hasMoreResults boo
 	}
 
 	a.recordInsertRows2Metrics()
+	a.syncTiDBRUV2ToRUDetails()
 	a.updateNetworkTrafficStatsAndMetrics()
 	// `LowSlowQuery` and `SummaryStmt` must be called before recording `PrevStmt`.
 	a.LogSlowQuery(txnTS, succ, hasMoreResults)
@@ -1692,6 +1693,22 @@ func (a *ExecStmt) recordInsertRows2Metrics() {
 	if sessVars.RUV2Metrics != nil {
 		sessVars.RUV2Metrics.AddExecutorL5InsertRows(int64(affectedRows))
 	}
+}
+
+func (a *ExecStmt) syncTiDBRUV2ToRUDetails() {
+	sessVars := a.Ctx.GetSessionVars()
+	if sessVars.RUV2Metrics == nil {
+		return
+	}
+
+	ruDetailRaw := a.GoCtx.Value(util.RUDetailsCtxKey)
+	ruDetail, _ := ruDetailRaw.(*util.RUDetails)
+	if ruDetail == nil {
+		return
+	}
+
+	tidbRU := sessVars.RUV2Metrics.Snapshot().CalculateRUValues()
+	ruDetail.AddTiDBRUV2(float64(tidbRU - ruDetail.TiDBRUV2()))
 }
 
 func (a *ExecStmt) recordLastQueryInfo(err error) {

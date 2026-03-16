@@ -24,8 +24,10 @@ import (
 	"time"
 
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/tidb/pkg/config"
 	"github.com/pingcap/tidb/pkg/executor"
 	"github.com/pingcap/tidb/pkg/parser"
+	"github.com/pingcap/tidb/pkg/parser/ast"
 	"github.com/pingcap/tidb/pkg/session"
 	"github.com/pingcap/tidb/pkg/sessionctx/slowlogrule"
 	"github.com/pingcap/tidb/pkg/sessionctx/vardef"
@@ -405,6 +407,46 @@ func TestWriteSlowLog(t *testing.T) {
 
 	tk.MustExec(`set global tidb_slow_log_rules="Succ:true"`)
 	checkWriteSlowLog(true)
+}
+
+func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
+	original := config.GetGlobalConfig()
+	t.Cleanup(func() {
+		if original != nil {
+			config.StoreGlobalConfig(original)
+		}
+	})
+
+	cfg := config.NewConfig()
+	cfg.RUV2 = config.DefaultRUV2Config()
+	config.StoreGlobalConfig(cfg)
+
+	ctx := mock.NewContext()
+	sessVars := ctx.GetSessionVars()
+	sessVars.StartTime = time.Now()
+	sessVars.StmtCtx.StmtType = "Select"
+	sessVars.StmtCtx.OriginalSQL = "select 1"
+	sessVars.StmtCtx.ResetSQLDigest(sessVars.StmtCtx.OriginalSQL)
+
+	goCtx := execdetails.ContextWithInitializedExecDetails(context.Background())
+	sessVars.RUV2Metrics = execdetails.RUV2MetricsFromContext(goCtx)
+	require.NotNil(t, sessVars.RUV2Metrics)
+	sessVars.RUV2Metrics.AddResultChunkRows(100)
+	sessVars.RUV2Metrics.AddPlanCnt(2)
+	sessVars.RUV2Metrics.AddSessionParserTotal(3)
+
+	expected := sessVars.RUV2Metrics.Snapshot().CalculateRUValues()
+	ruDetails := goCtx.Value(util.RUDetailsCtxKey).(*util.RUDetails)
+	ruDetails.AddTiDBRUV2(12345)
+
+	execStmt := &executor.ExecStmt{
+		Ctx:      ctx,
+		GoCtx:    goCtx,
+		StmtNode: &ast.SelectStmt{},
+	}
+	execStmt.FinishExecuteStmt(0, nil, false)
+
+	require.Equal(t, expected, ruDetails.TiDBRUV2())
 }
 
 func TestSlowLogMaxPerSec(t *testing.T) {
