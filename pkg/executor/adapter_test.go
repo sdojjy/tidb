@@ -24,10 +24,13 @@ import (
 	"time"
 
 	"github.com/pingcap/failpoint"
+	rmpb "github.com/pingcap/kvproto/pkg/resource_manager"
 	"github.com/pingcap/tidb/pkg/config"
+	distsqlctx "github.com/pingcap/tidb/pkg/distsql/context"
 	"github.com/pingcap/tidb/pkg/executor"
 	"github.com/pingcap/tidb/pkg/parser"
 	"github.com/pingcap/tidb/pkg/parser/ast"
+	"github.com/pingcap/tidb/pkg/resourcegroup"
 	"github.com/pingcap/tidb/pkg/session"
 	"github.com/pingcap/tidb/pkg/sessionctx/slowlogrule"
 	"github.com/pingcap/tidb/pkg/sessionctx/vardef"
@@ -42,6 +45,37 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
+
+type mockRUV2ConsumptionReporter struct {
+	tikvGroup string
+	tikvRUV2  float64
+	tidbGroup string
+	tidbRUV2  float64
+}
+
+func (*mockRUV2ConsumptionReporter) ReportConsumption(_ string, _ *rmpb.Consumption) {}
+
+func (m *mockRUV2ConsumptionReporter) ReportTiKVRUV2Consumption(resourceGroupName string, ruv2 float64) {
+	m.tikvGroup = resourceGroupName
+	m.tikvRUV2 = ruv2
+}
+
+func (m *mockRUV2ConsumptionReporter) ReportTiDBRUV2Consumption(resourceGroupName string, ruv2 float64) {
+	m.tidbGroup = resourceGroupName
+	m.tidbRUV2 = ruv2
+}
+
+type mockRUV2ReportingContext struct {
+	*mock.Context
+	reporter resourcegroup.ConsumptionReporter
+}
+
+func (c *mockRUV2ReportingContext) GetDistSQLCtx() *distsqlctx.DistSQLContext {
+	dctx := c.Context.GetDistSQLCtx()
+	dctx.RUConsumptionReporter = c.reporter
+	dctx.ResourceGroupName = c.GetSessionVars().StmtCtx.ResourceGroupName
+	return dctx
+}
 
 func TestFormatSQL(t *testing.T) {
 	val := executor.FormatSQL("aaaa")
@@ -421,12 +455,17 @@ func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
 	cfg.RUV2 = config.DefaultRUV2Config()
 	config.StoreGlobalConfig(cfg)
 
-	ctx := mock.NewContext()
+	reporter := &mockRUV2ConsumptionReporter{}
+	ctx := &mockRUV2ReportingContext{
+		Context:  mock.NewContext(),
+		reporter: reporter,
+	}
 	sessVars := ctx.GetSessionVars()
 	sessVars.StartTime = time.Now()
 	sessVars.StmtCtx.StmtType = "Select"
 	sessVars.StmtCtx.OriginalSQL = "select 1"
 	sessVars.StmtCtx.ResetSQLDigest(sessVars.StmtCtx.OriginalSQL)
+	sessVars.StmtCtx.ResourceGroupName = "rg1"
 
 	goCtx := execdetails.ContextWithInitializedExecDetails(context.Background())
 	sessVars.RUV2Metrics = execdetails.RUV2MetricsFromContext(goCtx)
@@ -437,6 +476,7 @@ func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
 
 	expected := sessVars.RUV2Metrics.Snapshot().CalculateRUValues()
 	ruDetails := goCtx.Value(util.RUDetailsCtxKey).(*util.RUDetails)
+	ruDetails.AddTiKVRUV2(23456)
 	ruDetails.AddTiDBRUV2(12345)
 
 	execStmt := &executor.ExecStmt{
@@ -447,6 +487,10 @@ func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
 	execStmt.FinishExecuteStmt(0, nil, false)
 
 	require.Equal(t, expected, ruDetails.TiDBRUV2())
+	require.Equal(t, "rg1", reporter.tikvGroup)
+	require.Equal(t, float64(23456), reporter.tikvRUV2)
+	require.Equal(t, "rg1", reporter.tidbGroup)
+	require.Equal(t, float64(expected), reporter.tidbRUV2)
 }
 
 func TestSlowLogMaxPerSec(t *testing.T) {

@@ -1591,7 +1591,7 @@ func (a *ExecStmt) FinishExecuteStmt(txnTS uint64, err error, hasMoreResults boo
 	}
 
 	a.recordInsertRows2Metrics()
-	a.syncTiDBRUV2ToRUDetails()
+	a.finalizeStatementRUV2Metrics()
 	a.updateNetworkTrafficStatsAndMetrics()
 	// `LowSlowQuery` and `SummaryStmt` must be called before recording `PrevStmt`.
 	a.LogSlowQuery(txnTS, succ, hasMoreResults)
@@ -1695,7 +1695,7 @@ func (a *ExecStmt) recordInsertRows2Metrics() {
 	}
 }
 
-func (a *ExecStmt) syncTiDBRUV2ToRUDetails() {
+func (a *ExecStmt) finalizeStatementRUV2Metrics() {
 	sessVars := a.Ctx.GetSessionVars()
 	if sessVars.RUV2Metrics == nil {
 		return
@@ -1709,6 +1709,17 @@ func (a *ExecStmt) syncTiDBRUV2ToRUDetails() {
 
 	tidbRU := sessVars.RUV2Metrics.Snapshot().CalculateRUValues()
 	ruDetail.AddTiDBRUV2(float64(tidbRU - ruDetail.TiDBRUV2()))
+
+	dctx := a.Ctx.GetDistSQLCtx()
+	if dctx == nil || dctx.RUConsumptionReporter == nil || len(dctx.ResourceGroupName) == 0 {
+		return
+	}
+	if tikvRU := ruDetail.TiKVRUV2(); tikvRU > 0 {
+		dctx.RUConsumptionReporter.ReportTiKVRUV2Consumption(dctx.ResourceGroupName, float64(tikvRU))
+	}
+	if tidbRU := ruDetail.TiDBRUV2(); tidbRU > 0 {
+		dctx.RUConsumptionReporter.ReportTiDBRUV2Consumption(dctx.ResourceGroupName, float64(tidbRU))
+	}
 }
 
 func (a *ExecStmt) recordLastQueryInfo(err error) {
