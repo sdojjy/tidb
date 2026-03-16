@@ -456,7 +456,8 @@ txn-cnt = 0.03013709
 # RU v2 TiKV-side weights for TiKV RU value calculation (handled in client-go).
 [tikv-client.ru-v2]
 # ru-scale is the scale factor used to convert RU v2 float values into scaled integer values.
-# When it's not set, it inherits the value from [ru-v2].ru-scale.
+# It inherits [ru-v2].ru-scale only when tikv-client.ru-v2.ru-scale is unset.
+# An explicit value, including 0, overrides the inherited value.
 ru-scale = 5697.054498
 
 tikv-kv-engine-cache-miss = 0.45975389

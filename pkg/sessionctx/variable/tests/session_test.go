@@ -365,6 +365,8 @@ func TestSlowLogFormat(t *testing.T) {
 	ctx := context.WithValue(context.Background(), execdetails.StmtExecDetailKey,
 		&execdetails.StmtExecDetails{WriteSQLRespDuration: logItems.WriteSQLRespTotal})
 	seVar.RUV2Metrics = execdetails.NewRUV2Metrics()
+	seVar.RUV2Metrics.AddResultChunkRows(11)
+	seVar.RUV2Metrics.AddPlanCnt(2)
 	actual := executor.PrepareSlowLogItemsForRules(ctx, vardef.GlobalSlowLogRules.Load(), seVar)
 	childCtx := context.WithValue(ctx, util.ExecDetailsKey, &tikvExecDetail)
 	executor.CompleteSlowLogItemsForRules(childCtx, seVar, actual)
@@ -394,6 +396,8 @@ func TestSlowLogFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	executor.SetSlowLogItems(execStmt, txnTS, logItems.HasMoreResults, actual)
+	logItems.RUV2Metrics = seVar.RUV2Metrics.Snapshot()
+	logItems.RUV2Metrics.TiKVRU = ruDetails.TiKVRUV2()
 	compareSlowLogItems(t, logItems, actual)
 }
 
@@ -407,7 +411,7 @@ func compareSlowLogItems(t *testing.T, expected, actual *variable.SlowQueryLogIt
 
 	// Some fields are hard to mock, so we skip them.
 	skipFields := []string{"KeyspaceID", "KeyspaceName", "TimeTotal", "Prepared", "ResultRows", "ResultRows", "Plan", "BinaryPlan",
-		"UsedStats", "CopTasks", "RewriteInfo", "ExecRetryTime", "Warnings", "RUDetails", "RUV2Metrics", "MemMax", "DiskMax", "StorageKV"}
+		"UsedStats", "CopTasks", "RewriteInfo", "ExecRetryTime", "Warnings", "RUDetails", "MemMax", "DiskMax", "StorageKV"}
 	skipFieldsFunc := func(res string, fields []string) bool {
 		for _, f := range fields {
 			if res == f {

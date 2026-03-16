@@ -362,6 +362,38 @@ func TestRUV2MetricsSnapshotCalculateRUValues(t *testing.T) {
 	require.Equal(t, int64(271456), totalRU)
 }
 
+func TestRUV2MetricsSnapshotFreezesRUValues(t *testing.T) {
+	original := config.GetGlobalConfig()
+	t.Cleanup(func() {
+		if original != nil {
+			config.StoreGlobalConfig(original)
+		}
+	})
+
+	cfg := config.NewConfig()
+	cfg.RUV2 = config.DefaultRUV2Config()
+	config.StoreGlobalConfig(cfg)
+
+	metrics := NewRUV2Metrics()
+	metrics.AddResultChunkRows(1000)
+	metrics.AddPlanCnt(2)
+
+	snapshot := metrics.Snapshot()
+	require.Equal(t, snapshot.TiDBRU, snapshot.CalculateRUValues())
+
+	updated := config.NewConfig()
+	updated.RUV2 = config.DefaultRUV2Config()
+	updated.RUV2.ResultChunkRows *= 10
+	updated.RUV2.PlanCnt *= 10
+	config.StoreGlobalConfig(updated)
+
+	require.Equal(t, snapshot.TiDBRU, snapshot.CalculateRUValues())
+
+	freshSnapshot := metrics.Snapshot()
+	require.NotEqual(t, snapshot.TiDBRU, freshSnapshot.TiDBRU)
+	require.Equal(t, freshSnapshot.TiDBRU, freshSnapshot.CalculateRUValues())
+}
+
 func TestFormatRUV2MetricsIncludesRUValuesFirst(t *testing.T) {
 	original := config.GetGlobalConfig()
 	t.Cleanup(func() {

@@ -171,7 +171,7 @@ func (m *RUV2Metrics) Snapshot() RUV2MetricsSnapshot {
 	}
 	readCnt := atomic.LoadInt64(&m.resourceManagerReadCnt)
 	writeCnt := atomic.LoadInt64(&m.resourceManagerWriteCnt)
-	return RUV2MetricsSnapshot{
+	snapshot := RUV2MetricsSnapshot{
 		ResultChunkRows:                   atomic.LoadInt64(&m.resultChunkRows),
 		ExecutorL1:                        snapshotRUV2LabelCounter(&m.executorL1),
 		ExecutorL2:                        snapshotRUV2LabelCounter(&m.executorL2),
@@ -191,6 +191,9 @@ func (m *RUV2Metrics) Snapshot() RUV2MetricsSnapshot {
 		TiKVStorageProcessedKeysGet:       atomic.LoadInt64(&m.tikvStorageProcessedKeysGet),
 		TiKVCoprocessorExecutorWorkTotal:  snapshotRUV2LabelCounter(&m.tikvCoprocessorWorkTotal),
 	}
+	snapshot.TiDBRU = snapshot.calculateRUValuesWithWeights(activeRUV2Config())
+	snapshot.tiDBRUFrozen = true
+	return snapshot
 }
 
 type ruv2LabelCounter = sync.Map
@@ -258,6 +261,10 @@ type RUV2MetricsSnapshot struct {
 
 	// TiKVRU is the TiKV RU v2 value (scaled integer) calculated in client-go and stored in RUDetails.
 	TiKVRU int64
+	// TiDBRU is the TiDB RU v2 value (scaled integer) frozen at snapshot creation time.
+	TiDBRU int64
+
+	tiDBRUFrozen bool
 }
 
 // IsZero checks whether all metrics are zero.
@@ -280,13 +287,18 @@ func (s RUV2MetricsSnapshot) IsZero() bool {
 		s.TiKVStorageProcessedKeysBatchGet == 0 &&
 		s.TiKVStorageProcessedKeysGet == 0 &&
 		len(s.TiKVCoprocessorExecutorWorkTotal) == 0 &&
-		s.TiKVRU == 0
+		s.TiKVRU == 0 &&
+		s.TiDBRU == 0
 }
 
 // Merge merges another snapshot into the receiver.
 func (s *RUV2MetricsSnapshot) Merge(other RUV2MetricsSnapshot) {
 	if s == nil {
 		return
+	}
+	var mergedTiDBRU int64
+	if s.tiDBRUFrozen || other.tiDBRUFrozen {
+		mergedTiDBRU = s.CalculateRUValues() + other.CalculateRUValues()
 	}
 	s.ResultChunkRows += other.ResultChunkRows
 	s.ExecutorL5InsertRows += other.ExecutorL5InsertRows
@@ -307,6 +319,10 @@ func (s *RUV2MetricsSnapshot) Merge(other RUV2MetricsSnapshot) {
 	s.ExecutorL2 = mergeRUV2LabelMap(s.ExecutorL2, other.ExecutorL2)
 	s.ExecutorL3 = mergeRUV2LabelMap(s.ExecutorL3, other.ExecutorL3)
 	s.TiKVCoprocessorExecutorWorkTotal = mergeRUV2LabelMap(s.TiKVCoprocessorExecutorWorkTotal, other.TiKVCoprocessorExecutorWorkTotal)
+	if s.tiDBRUFrozen || other.tiDBRUFrozen {
+		s.TiDBRU = mergedTiDBRU
+		s.tiDBRUFrozen = true
+	}
 }
 
 func mergeRUV2LabelMap(dst, src map[string]int64) map[string]int64 {
@@ -325,11 +341,21 @@ func mergeRUV2LabelMap(dst, src map[string]int64) map[string]int64 {
 // CalculateRUValues calculates the TiDB RU from the snapshot.
 // The returned value is a scaled integer.
 func (s RUV2MetricsSnapshot) CalculateRUValues() (tidbRU int64) {
+	if s.tiDBRUFrozen {
+		return s.TiDBRU
+	}
+	return s.calculateRUValuesWithWeights(activeRUV2Config())
+}
+
+func activeRUV2Config() config.RUV2Config {
 	weights := config.DefaultRUV2Config()
 	if cfg := config.GetGlobalConfig(); cfg != nil {
 		weights = cfg.RUV2
 	}
+	return weights
+}
 
+func (s RUV2MetricsSnapshot) calculateRUValuesWithWeights(weights config.RUV2Config) (tidbRU int64) {
 	tidbRUFloat :=
 		float64(s.ResultChunkRows)*weights.ResultChunkRows +
 			float64(sumRUV2LabelMap(s.ExecutorL1))*weights.ExecutorL1 +
