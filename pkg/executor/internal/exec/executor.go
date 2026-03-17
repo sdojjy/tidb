@@ -46,13 +46,20 @@ type nextIOAcc struct {
 	inCells int64
 }
 
+func calcCellCount(rows, cols int) int64 {
+	if rows <= 0 || cols <= 0 {
+		return 0
+	}
+	return int64(rows) * int64(cols)
+}
+
 // addInput adds rows and cells (rows*cols) into the accumulator.
 func (a *nextIOAcc) addInput(rows, cols int) {
-	if a == nil || rows <= 0 || cols <= 0 {
+	if a == nil || rows <= 0 {
 		return
 	}
 	stdatomic.AddInt64(&a.inRows, int64(rows))
-	stdatomic.AddInt64(&a.inCells, int64(rows*cols))
+	stdatomic.AddInt64(&a.inCells, calcCellCount(rows, cols))
 }
 
 type nextIOAccKeyType struct{}
@@ -563,10 +570,7 @@ func Next(ctx context.Context, e Executor, req *chunk.Chunk) (err error) {
 
 	inRows := stdatomic.LoadInt64(&myAcc.inRows)
 	inCells := stdatomic.LoadInt64(&myAcc.inCells)
-	outCells := int64(0)
-	if outRows > 0 && outCols > 0 {
-		outCells = int64(outRows * outCols)
-	}
+	outCells := calcCellCount(outRows, outCols)
 	if inRows != 0 {
 		addRUV2ExecutorMetricWithInfo(ctx, info, false, inRows)
 	}
