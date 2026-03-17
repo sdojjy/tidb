@@ -60,8 +60,8 @@ type nextIOAccKeyType struct{}
 var nextIOAccKey nextIOAccKeyType
 
 type ruv2ExecutorMetric struct {
-	level    int
 	label    string
+	level    int
 	useCells bool
 }
 
