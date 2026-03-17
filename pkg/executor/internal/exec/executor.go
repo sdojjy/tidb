@@ -89,7 +89,14 @@ func addRUV2ExecutorMetric(ctx context.Context, execType string, useCells bool, 
 		return
 	}
 	info, ok := ruv2ExecutorMetricByType[execType]
-	if !ok || info.useCells != useCells {
+	if !ok {
+		return
+	}
+	addRUV2ExecutorMetricWithInfo(ctx, info, useCells, delta)
+}
+
+func addRUV2ExecutorMetricWithInfo(ctx context.Context, info ruv2ExecutorMetric, useCells bool, delta int64) {
+	if delta == 0 || info.useCells != useCells {
 		return
 	}
 	switch info.level {
@@ -520,12 +527,21 @@ func Next(ctx context.Context, e Executor, req *chunk.Chunk) (err error) {
 		return err
 	}
 
-	r, ctx := tracing.StartRegionEx(ctx, reflect.TypeOf(e).String()+".Next")
+	execType := reflect.TypeOf(e).String()
+	r, ctx := tracing.StartRegionEx(ctx, execType+".Next")
 	defer r.End()
 
 	parentAcc, _ := ctx.Value(nextIOAccKey).(*nextIOAcc)
-	myAcc := &nextIOAcc{}
-	ctx = context.WithValue(ctx, nextIOAccKey, myAcc)
+	info, trackRUV2 := ruv2ExecutorMetricByType[execType]
+	needLocalAcc := trackRUV2 || (parentAcc != nil && len(e.AllChildren()) > 0)
+	var myAcc *nextIOAcc
+	if needLocalAcc {
+		// Keep descendant IO local to this executor before optionally bubbling the
+		// executor output up to its parent. This avoids per-call allocations for
+		// executors that are outside the tracked RUv2 subtree.
+		myAcc = &nextIOAcc{}
+		ctx = context.WithValue(ctx, nextIOAccKey, myAcc)
+	}
 
 	e.RegisterSQLAndPlanInExecForTopProfiling()
 	err = e.Next(ctx, req)
@@ -540,7 +556,11 @@ func Next(ctx context.Context, e Executor, req *chunk.Chunk) (err error) {
 		parentAcc.addInput(outRows, outCols)
 	}
 
-	execType := reflect.TypeOf(e).String()
+	if !trackRUV2 {
+		// recheck whether the session/query is killed during the Next()
+		return e.HandleSQLKillerSignal()
+	}
+
 	inRows := stdatomic.LoadInt64(&myAcc.inRows)
 	inCells := stdatomic.LoadInt64(&myAcc.inCells)
 	outCells := int64(0)
@@ -548,16 +568,16 @@ func Next(ctx context.Context, e Executor, req *chunk.Chunk) (err error) {
 		outCells = int64(outRows * outCols)
 	}
 	if inRows != 0 {
-		addRUV2ExecutorMetric(ctx, execType, false, inRows)
+		addRUV2ExecutorMetricWithInfo(ctx, info, false, inRows)
 	}
 	if outRows != 0 {
-		addRUV2ExecutorMetric(ctx, execType, false, int64(outRows))
+		addRUV2ExecutorMetricWithInfo(ctx, info, false, int64(outRows))
 	}
 	if inCells != 0 {
-		addRUV2ExecutorMetric(ctx, execType, true, inCells)
+		addRUV2ExecutorMetricWithInfo(ctx, info, true, inCells)
 	}
 	if outCells != 0 {
-		addRUV2ExecutorMetric(ctx, execType, true, outCells)
+		addRUV2ExecutorMetricWithInfo(ctx, info, true, outCells)
 	}
 	// recheck whether the session/query is killed during the Next()
 	return e.HandleSQLKillerSignal()
