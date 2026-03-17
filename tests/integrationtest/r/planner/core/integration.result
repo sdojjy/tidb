@@ -3884,7 +3884,7 @@ id	estRows	actRows	task	access object	execution info	operator info	memory	disk
 Point_Get	1.00	1	root	table:t, index:a(a)	time:<num>, open:<num>, close:<num>, loops:<num>, RU:<num>, ruv2:{total_ru:<num>, tidb_ru:<num>, tikv_ru:<num>, executor_l1:{PointGetExecutor:<num>}	NULL	N/A	N/A
 explain analyze format='brief' insert ignore into t values (1,1),(2,2),(3,3),(4,4);
 id	estRows	actRows	task	access object	execution info	operator info	memory	disk
-Insert	N/A	0	root	NULL	time:<num>, open:<num>, close:<num>, loops:<num>, prepare:<num>, check_insert: {total_time:<num>, mem_insert_time:<num>, prefetch:<num>, fk_check:<num>, rpc:{BatchGet:{num_rpc:<num>, total_time:<num>}}}}}	N/A	<num> Bytes	N/A
+Insert	N/A	0	root	NULL	time:<num>, open:<num>, close:<num>, loops:<num>, prepare:<num>, check_insert: {total_time:<num>, mem_insert_time:<num>, prefetch:<num>, fk_check:<num>, rpc:{BatchGet:{num_rpc:<num>, total_time:<num>}}}	N/A	<num> Bytes	N/A
 drop table if exists t;
 create table t (a int, b int);
 insert into t values (1, 2);
