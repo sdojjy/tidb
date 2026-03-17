@@ -32,6 +32,7 @@ go_library(
         "//pkg/store/driver/txn",
         "//pkg/table/temptable",
         "//pkg/tablecodec",
+        "//pkg/util/execdetails",
         "//pkg/util/logutil",
         "//pkg/util/redact",
         "//pkg/util/tableutil",
