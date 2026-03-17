@@ -36,13 +36,13 @@ import (
 	drivertxn "github.com/pingcap/tidb/pkg/store/driver/txn"
 	"github.com/pingcap/tidb/pkg/table/temptable"
 	"github.com/pingcap/tidb/pkg/tablecodec"
-	"github.com/pingcap/tidb/pkg/util/execdetails"
 	"github.com/pingcap/tidb/pkg/util/logutil"
 	"github.com/pingcap/tidb/pkg/util/redact"
 	"github.com/pingcap/tidb/pkg/util/tableutil"
 	"github.com/pingcap/tidb/pkg/util/tracing"
 	tikvstore "github.com/tikv/client-go/v2/kv"
 	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/client-go/v2/tikvrpc/interceptor"
 	"github.com/tikv/client-go/v2/txnkv/transaction"
 	"go.uber.org/zap"
 )
@@ -76,6 +76,13 @@ type baseTxnContextProvider struct {
 	// When constStartTS != 0, we use constStartTS directly without fetching it from tso.
 	// To save the cpu cycles `PrepareTSFuture` will also not be called when warmup (postpone to activate txn).
 	constStartTS uint64
+}
+
+func currentStatementRUV2RPCInterceptor(sessVars *variable.SessionVars) interceptor.RPCInterceptor {
+	if sessVars == nil {
+		return nil
+	}
+	return drivertxn.NewStorageProcessedKeysRUV2RPCInterceptor(sessVars.RUV2Metrics)
 }
 
 // OnInitialize is the hook that should be called when enter a new txn with this provider
@@ -456,9 +463,7 @@ func (p *baseTxnContextProvider) getSnapshotByTS(snapshotTS uint64) (kv.Snapshot
 	}
 
 	sessVars := p.sctx.GetSessionVars()
-	ruv2Interceptor := drivertxn.NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
-		return sessVars.RUV2Metrics
-	})
+	ruv2Interceptor := currentStatementRUV2RPCInterceptor(sessVars)
 	txnCtx := sessVars.TxnCtx
 
 	var snapshot kv.Snapshot
@@ -528,9 +533,7 @@ func (p *baseTxnContextProvider) SetOptionsOnTxnActive(txn kv.Transaction) {
 		// Bind an interceptor for client-go to count the number of SQL executions of each TiKV.
 		txn.SetOption(kv.RPCInterceptor, sessVars.StmtCtx.KvExecCounter.RPCInterceptor())
 	}
-	if interceptor := drivertxn.NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
-		return sessVars.RUV2Metrics
-	}); interceptor != nil {
+	if interceptor := currentStatementRUV2RPCInterceptor(sessVars); interceptor != nil {
 		txn.SetOption(kv.RPCInterceptor, interceptor)
 	}
 	txn.SetOption(kv.ResourceGroupTagger, sessVars.StmtCtx.GetResourceGroupTagger())
@@ -632,9 +635,7 @@ func (p *baseTxnContextProvider) SetOptionsBeforeCommit(
 		// Bind an interceptor for client-go to count the number of SQL executions of each TiKV.
 		txn.SetOption(kv.RPCInterceptor, sessVars.StmtCtx.KvExecCounter.RPCInterceptor())
 	}
-	if interceptor := drivertxn.NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
-		return sessVars.RUV2Metrics
-	}); interceptor != nil {
+	if interceptor := currentStatementRUV2RPCInterceptor(sessVars); interceptor != nil {
 		txn.SetOption(kv.RPCInterceptor, interceptor)
 	}
 

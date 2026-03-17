@@ -31,7 +31,6 @@ go_library(
         "//pkg/table/temptable",
         "//pkg/types",
         "//pkg/util/dbterror/plannererrors",
-        "//pkg/util/execdetails",
         "@com_github_pingcap_errors//:errors",
         "@com_github_pingcap_failpoint//:failpoint",
         "@com_github_tikv_client_go_v2//oracle",

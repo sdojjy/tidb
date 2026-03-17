@@ -30,7 +30,6 @@ import (
 	"github.com/pingcap/tidb/pkg/sessiontxn/internal"
 	driver "github.com/pingcap/tidb/pkg/store/driver/txn"
 	"github.com/pingcap/tidb/pkg/table/temptable"
-	"github.com/pingcap/tidb/pkg/util/execdetails"
 )
 
 // StalenessTxnContextProvider implements sessiontxn.TxnContextProvider
@@ -255,9 +254,7 @@ func (p *StalenessTxnContextProvider) GetSnapshotWithStmtReadTS() (kv.Snapshot, 
 	}
 
 	sessVars := p.sctx.GetSessionVars()
-	ruv2Interceptor := driver.NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
-		return sessVars.RUV2Metrics
-	})
+	ruv2Interceptor := driver.NewStorageProcessedKeysRUV2RPCInterceptor(sessVars.RUV2Metrics)
 
 	var snapshot kv.Snapshot
 	if txn.Valid() {
