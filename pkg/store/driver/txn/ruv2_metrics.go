@@ -30,10 +30,23 @@ func NewStorageProcessedKeysRUV2RPCInterceptor(ruv2Metrics *execdetails.RUV2Metr
 	if ruv2Metrics == nil {
 		return nil
 	}
+	return NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
+		return ruv2Metrics
+	})
+}
+
+// NewStorageProcessedKeysRUV2RPCInterceptorWithGetter creates an interceptor that
+// collects statement-level RUv2 request counters and response-side metrics from
+// ExecDetailsV2.RuV2 using the metrics returned by getter at request time.
+func NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(getter func() *execdetails.RUV2Metrics) interceptor.RPCInterceptor {
+	if getter == nil {
+		return nil
+	}
 	return interceptor.NewRPCInterceptor(statementRUV2MetricsInterceptorName, func(next interceptor.RPCInterceptorFunc) interceptor.RPCInterceptorFunc {
 		return func(target string, req *tikvrpc.Request) (*tikvrpc.Response, error) {
 			resp, err := next(target, req)
 			if err == nil && resp != nil {
+				ruv2Metrics := getter()
 				updateResourceManagerRUV2Metrics(ruv2Metrics, req)
 				updateStorageProcessedKeysRUV2Metrics(ruv2Metrics, resp)
 			}

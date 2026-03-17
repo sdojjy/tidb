@@ -33,9 +33,10 @@ import (
 	"github.com/pingcap/tidb/pkg/sessiontxn"
 	"github.com/pingcap/tidb/pkg/sessiontxn/internal"
 	"github.com/pingcap/tidb/pkg/sessiontxn/staleread"
-	"github.com/pingcap/tidb/pkg/store/driver/txn"
+	drivertxn "github.com/pingcap/tidb/pkg/store/driver/txn"
 	"github.com/pingcap/tidb/pkg/table/temptable"
 	"github.com/pingcap/tidb/pkg/tablecodec"
+	"github.com/pingcap/tidb/pkg/util/execdetails"
 	"github.com/pingcap/tidb/pkg/util/logutil"
 	"github.com/pingcap/tidb/pkg/util/redact"
 	"github.com/pingcap/tidb/pkg/util/tableutil"
@@ -455,7 +456,9 @@ func (p *baseTxnContextProvider) getSnapshotByTS(snapshotTS uint64) (kv.Snapshot
 	}
 
 	sessVars := p.sctx.GetSessionVars()
-	ruv2Interceptor := txn.NewStorageProcessedKeysRUV2RPCInterceptor(sessVars.RUV2Metrics)
+	ruv2Interceptor := drivertxn.NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
+		return sessVars.RUV2Metrics
+	})
 	txnCtx := sessVars.TxnCtx
 
 	var snapshot kv.Snapshot
@@ -524,6 +527,11 @@ func (p *baseTxnContextProvider) SetOptionsOnTxnActive(txn kv.Transaction) {
 	if sessVars.StmtCtx.KvExecCounter != nil {
 		// Bind an interceptor for client-go to count the number of SQL executions of each TiKV.
 		txn.SetOption(kv.RPCInterceptor, sessVars.StmtCtx.KvExecCounter.RPCInterceptor())
+	}
+	if interceptor := drivertxn.NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
+		return sessVars.RUV2Metrics
+	}); interceptor != nil {
+		txn.SetOption(kv.RPCInterceptor, interceptor)
 	}
 	txn.SetOption(kv.ResourceGroupTagger, sessVars.StmtCtx.GetResourceGroupTagger())
 	txn.SetOption(kv.ExplicitRequestSourceType, sessVars.ExplicitRequestSourceType)
@@ -623,6 +631,11 @@ func (p *baseTxnContextProvider) SetOptionsBeforeCommit(
 	if sessVars.StmtCtx.KvExecCounter != nil {
 		// Bind an interceptor for client-go to count the number of SQL executions of each TiKV.
 		txn.SetOption(kv.RPCInterceptor, sessVars.StmtCtx.KvExecCounter.RPCInterceptor())
+	}
+	if interceptor := drivertxn.NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
+		return sessVars.RUV2Metrics
+	}); interceptor != nil {
+		txn.SetOption(kv.RPCInterceptor, interceptor)
 	}
 
 	if tables := sessVars.TxnCtx.TemporaryTables; len(tables) > 0 {
@@ -781,6 +794,6 @@ func (m temporaryTableKVFilter) IsUnnecessaryKeyValue(
 	}
 
 	// This is the default filter for all tables.
-	defaultFilter := txn.TiDBKVFilter{}
+	defaultFilter := drivertxn.TiDBKVFilter{}
 	return defaultFilter.IsUnnecessaryKeyValue(key, value, flags)
 }

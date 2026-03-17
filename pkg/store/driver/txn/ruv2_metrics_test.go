@@ -65,3 +65,45 @@ func TestStorageProcessedKeysRUV2RPCInterceptor(t *testing.T) {
 func TestStorageProcessedKeysRUV2RPCInterceptorNilMetrics(t *testing.T) {
 	require.Nil(t, NewStorageProcessedKeysRUV2RPCInterceptor(nil))
 }
+
+func TestStorageProcessedKeysRUV2RPCInterceptorWithGetterFollowsCurrentStatement(t *testing.T) {
+	metrics1 := execdetails.NewRUV2Metrics()
+	metrics2 := execdetails.NewRUV2Metrics()
+	current := metrics1
+
+	it := NewStorageProcessedKeysRUV2RPCInterceptorWithGetter(func() *execdetails.RUV2Metrics {
+		return current
+	})
+	require.NotNil(t, it)
+
+	wrapFn := it.Wrap(func(_ string, req *tikvrpc.Request) (*tikvrpc.Response, error) {
+		switch req.Type {
+		case tikvrpc.CmdBatchGet:
+			return &tikvrpc.Response{
+				Resp: &kvrpcpb.BatchGetResponse{
+					ExecDetailsV2: &kvrpcpb.ExecDetailsV2{
+						RuV2: &kvrpcpb.RUV2{
+							StorageProcessedKeysBatchGet: 2,
+						},
+					},
+				},
+			}, nil
+		case tikvrpc.CmdPrewrite:
+			return &tikvrpc.Response{Resp: &kvrpcpb.PrewriteResponse{}}, nil
+		default:
+			return &tikvrpc.Response{}, nil
+		}
+	})
+
+	_, err := wrapFn("tikv-1", &tikvrpc.Request{Type: tikvrpc.CmdBatchGet, StoreTp: tikvrpc.TiKV})
+	require.NoError(t, err)
+
+	current = metrics2
+	_, err = wrapFn("tikv-1", &tikvrpc.Request{Type: tikvrpc.CmdPrewrite, StoreTp: tikvrpc.TiKV})
+	require.NoError(t, err)
+
+	require.Equal(t, int64(1), metrics1.Snapshot().ResourceManagerReadCnt)
+	require.Equal(t, int64(0), metrics1.Snapshot().ResourceManagerWriteCnt)
+	require.Equal(t, int64(1), metrics2.Snapshot().ResourceManagerWriteCnt)
+	require.Equal(t, int64(0), metrics2.Snapshot().ResourceManagerReadCnt)
+}
