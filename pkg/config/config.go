@@ -339,17 +339,17 @@ type RUV2Config struct {
 	// It is intentionally chosen to match legacy RU values for compatibility.
 	RUScale float64 `toml:"ru-scale" json:"ru-scale"`
 
-	ResultChunkRows             float64 `toml:"result-chunk-rows" json:"result-chunk-rows"`
-	ExecutorL1                  float64 `toml:"executor-l1" json:"executor-l1"`
-	ExecutorL2                  float64 `toml:"executor-l2" json:"executor-l2"`
-	ExecutorL3                  float64 `toml:"executor-l3" json:"executor-l3"`
-	ExecutorL5InsertRows        float64 `toml:"executor-l5-insert-rows" json:"executor-l5-insert-rows"`
-	PlanCnt                     float64 `toml:"plan-cnt" json:"plan-cnt"`
-	PlanDeriveStatsPaths        float64 `toml:"plan-derive-stats-paths" json:"plan-derive-stats-paths"`
-	ResourceManagerReadCnt      float64 `toml:"resource-manager-read-cnt" json:"resource-manager-read-cnt"`
-	ResourceManagerWriteCntTiDB float64 `toml:"resource-manager-write-cnt-tidb" json:"resource-manager-write-cnt-tidb"`
-	SessionParserTotal          float64 `toml:"session-parser-total" json:"session-parser-total"`
-	TxnCnt                      float64 `toml:"txn-cnt" json:"txn-cnt"`
+	ResultChunkRows         float64 `toml:"result-chunk-rows" json:"result-chunk-rows"`
+	ExecutorL1              float64 `toml:"executor-l1" json:"executor-l1"`
+	ExecutorL2              float64 `toml:"executor-l2" json:"executor-l2"`
+	ExecutorL3              float64 `toml:"executor-l3" json:"executor-l3"`
+	ExecutorL5InsertRows    float64 `toml:"executor-l5-insert-rows" json:"executor-l5-insert-rows"`
+	PlanCnt                 float64 `toml:"plan-cnt" json:"plan-cnt"`
+	PlanDeriveStatsPaths    float64 `toml:"plan-derive-stats-paths" json:"plan-derive-stats-paths"`
+	ResourceManagerReadCnt  float64 `toml:"resource-manager-read-cnt" json:"resource-manager-read-cnt"`
+	ResourceManagerWriteCnt float64 `toml:"resource-manager-write-cnt" json:"resource-manager-write-cnt"`
+	SessionParserTotal      float64 `toml:"session-parser-total" json:"session-parser-total"`
+	TxnCnt                  float64 `toml:"txn-cnt" json:"txn-cnt"`
 }
 
 // DefaultRUV2Config returns the default RU v2 configuration.
@@ -357,17 +357,17 @@ func DefaultRUV2Config() RUV2Config {
 	return RUV2Config{
 		RUScale: 5697.054498,
 
-		ResultChunkRows:             0.00010000,
-		ExecutorL1:                  0.00013278,
-		ExecutorL2:                  0.00000383,
-		ExecutorL3:                  0.00141739,
-		ExecutorL5InsertRows:        0.00472572,
-		PlanCnt:                     0.15392217,
-		PlanDeriveStatsPaths:        0.24968182,
-		ResourceManagerReadCnt:      0.02072003,
-		ResourceManagerWriteCntTiDB: 0.07179779,
-		SessionParserTotal:          0.19230499,
-		TxnCnt:                      0.03013709,
+		ResultChunkRows:         0.00010000,
+		ExecutorL1:              0.00013278,
+		ExecutorL2:              0.00000383,
+		ExecutorL3:              0.00141739,
+		ExecutorL5InsertRows:    0.00472572,
+		PlanCnt:                 0.15392217,
+		PlanDeriveStatsPaths:    0.24968182,
+		ResourceManagerReadCnt:  0.02072003,
+		ResourceManagerWriteCnt: 0.07179779,
+		SessionParserTotal:      0.19230499,
+		TxnCnt:                  0.03013709,
 	}
 }
 

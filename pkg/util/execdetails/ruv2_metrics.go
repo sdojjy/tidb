@@ -365,7 +365,7 @@ func (s RUV2MetricsSnapshot) calculateRUValuesWithWeights(weights config.RUV2Con
 			float64(s.PlanCnt)*weights.PlanCnt +
 			float64(s.PlanDeriveStatsPaths)*weights.PlanDeriveStatsPaths +
 			float64(s.ResourceManagerReadCnt)*weights.ResourceManagerReadCnt +
-			float64(s.ResourceManagerWriteCnt)*weights.ResourceManagerWriteCntTiDB +
+			float64(s.ResourceManagerWriteCnt)*weights.ResourceManagerWriteCnt +
 			float64(s.SessionParserTotal)*weights.SessionParserTotal +
 			float64(s.TxnCnt)*weights.TxnCnt
 
