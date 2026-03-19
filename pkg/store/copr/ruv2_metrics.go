@@ -28,6 +28,9 @@ func updateRUV2MetricsFromExecDetailsV2(ctx context.Context, details *kvrpcpb.Ex
 	}
 	ru := details.RuV2
 	ruv2Metrics := execdetails.RUV2MetricsFromContext(ctx)
+	// Coprocessor responses only own cop-side ExecDetailsV2 fields here.
+	// StorageProcessedKeysBatchGet/Get are collected by pkg/store/driver/txn for
+	// Get/BatchGet responses and are not expected on cop responses.
 	if ru.KvEngineCacheMiss != 0 {
 		metrics.RUV2TiKVKVEngineCacheMiss.Add(float64(ru.KvEngineCacheMiss))
 		if ruv2Metrics != nil {
@@ -50,18 +53,6 @@ func updateRUV2MetricsFromExecDetailsV2(ctx context.Context, details *kvrpcpb.Ex
 		metrics.RUV2TiKVRaftstoreStoreWriteTriggerWB.Add(float64(ru.RaftstoreStoreWriteTriggerWbBytes))
 		if ruv2Metrics != nil {
 			ruv2Metrics.AddTiKVRaftstoreStoreWriteTriggerWB(int64(ru.RaftstoreStoreWriteTriggerWbBytes))
-		}
-	}
-	if ru.StorageProcessedKeysBatchGet != 0 {
-		metrics.RUV2TiKVStorageProcessedKeysBatchGet.Add(float64(ru.StorageProcessedKeysBatchGet))
-		if ruv2Metrics != nil {
-			ruv2Metrics.AddTiKVStorageProcessedKeysBatchGet(int64(ru.StorageProcessedKeysBatchGet))
-		}
-	}
-	if ru.StorageProcessedKeysGet != 0 {
-		metrics.RUV2TiKVStorageProcessedKeysGet.Add(float64(ru.StorageProcessedKeysGet))
-		if ruv2Metrics != nil {
-			ruv2Metrics.AddTiKVStorageProcessedKeysGet(int64(ru.StorageProcessedKeysGet))
 		}
 	}
 	if inputs := ru.ExecutorInputs; inputs != nil {
