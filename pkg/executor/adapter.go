@@ -1708,7 +1708,8 @@ func (a *ExecStmt) finalizeStatementRUV2Metrics() {
 		return
 	}
 
-	tidbRU := sessVars.RUV2Metrics.Snapshot().CalculateRUValues()
+	weights := sessVars.RUV2Weights()
+	tidbRU := sessVars.RUV2Metrics.Snapshot(weights).CalculateRUValues(weights)
 	ruDetail.AddTiDBRUV2(float64(tidbRU - ruDetail.TiDBRUV2()))
 
 	dctx := a.Ctx.GetDistSQLCtx()

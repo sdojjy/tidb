@@ -261,6 +261,30 @@ type TxnCtxNoNeedToRestore struct {
 	CurrentStmtPessimisticLockCache map[string][]byte
 }
 
+// RUV2Weights returns the active TiDB-side RU v2 weights for the current
+// session. The weights come from the global config, but the conversion is kept
+// in the session layer so lower-level utility packages remain config-free.
+func (s *SessionVars) RUV2Weights() execdetails.RUV2Weights {
+	weights := execdetails.DefaultRUV2Weights()
+	if cfg := config.GetGlobalConfig(); cfg != nil {
+		weights = execdetails.RUV2Weights{
+			RUScale:                 cfg.RUV2.RUScale,
+			ResultChunkCells:        cfg.RUV2.ResultChunkCells,
+			ExecutorL1:              cfg.RUV2.ExecutorL1,
+			ExecutorL2:              cfg.RUV2.ExecutorL2,
+			ExecutorL3:              cfg.RUV2.ExecutorL3,
+			ExecutorL5InsertRows:    cfg.RUV2.ExecutorL5InsertRows,
+			PlanCnt:                 cfg.RUV2.PlanCnt,
+			PlanDeriveStatsPaths:    cfg.RUV2.PlanDeriveStatsPaths,
+			ResourceManagerReadCnt:  cfg.RUV2.ResourceManagerReadCnt,
+			ResourceManagerWriteCnt: cfg.RUV2.ResourceManagerWriteCnt,
+			SessionParserTotal:      cfg.RUV2.SessionParserTotal,
+			TxnCnt:                  cfg.RUV2.TxnCnt,
+		}
+	}
+	return weights
+}
+
 // SavepointRecord indicates a transaction's savepoint record.
 type SavepointRecord struct {
 	// name is the name of the savepoint

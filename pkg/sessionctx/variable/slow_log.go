@@ -547,7 +547,7 @@ func (s *SessionVars) SlowLogFormat(logItems *SlowQueryLogItems) string {
 	if waitRUDuration := logItems.RUDetails.RUWaitDuration(); waitRUDuration > time.Duration(0) {
 		writeSlowLogItem(&buf, SlowLogWaitRUDuration, strconv.FormatFloat(waitRUDuration.Seconds(), 'f', -1, 64))
 	}
-	if formatted := execdetails.FormatRUV2Metrics(logItems.RUV2Metrics); len(formatted) > 0 {
+	if formatted := execdetails.FormatRUV2Metrics(logItems.RUV2Metrics, s.RUV2Weights()); len(formatted) > 0 {
 		writeSlowLogItem(&buf, SlowLogRUV2Metrics, formatted)
 	}
 	if logItems.CPUUsages.TidbCPUTime > time.Duration(0) {

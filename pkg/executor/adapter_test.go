@@ -474,7 +474,7 @@ func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
 	sessVars.RUV2Metrics.AddPlanCnt(2)
 	sessVars.RUV2Metrics.AddSessionParserTotal(3)
 
-	expected := sessVars.RUV2Metrics.Snapshot().CalculateRUValues()
+	expected := sessVars.RUV2Metrics.Snapshot(sessVars.RUV2Weights()).CalculateRUValues(sessVars.RUV2Weights())
 	ruDetails := goCtx.Value(util.RUDetailsCtxKey).(*util.RUDetails)
 	ruDetails.AddTiKVRUV2(23456)
 	ruDetails.AddTiDBRUV2(12345)

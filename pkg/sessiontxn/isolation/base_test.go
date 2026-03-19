@@ -61,9 +61,9 @@ func TestCurrentStatementRUV2RPCInterceptorCapturesMetrics(t *testing.T) {
 	_, err = wrapFn("tikv-1", &tikvrpc.Request{Type: tikvrpc.CmdPrewrite, StoreTp: tikvrpc.TiKV})
 	require.NoError(t, err)
 
-	require.Equal(t, int64(1), metrics1.Snapshot().ResourceManagerReadCnt)
-	require.Equal(t, int64(1), metrics1.Snapshot().ResourceManagerWriteCnt)
-	require.Equal(t, int64(2), metrics1.Snapshot().TiKVStorageProcessedKeysBatchGet)
-	require.Equal(t, int64(0), metrics2.Snapshot().ResourceManagerReadCnt)
-	require.Equal(t, int64(0), metrics2.Snapshot().ResourceManagerWriteCnt)
+	require.Equal(t, int64(1), metrics1.Snapshot(execdetails.DefaultRUV2Weights()).ResourceManagerReadCnt)
+	require.Equal(t, int64(1), metrics1.Snapshot(execdetails.DefaultRUV2Weights()).ResourceManagerWriteCnt)
+	require.Equal(t, int64(2), metrics1.Snapshot(execdetails.DefaultRUV2Weights()).TiKVStorageProcessedKeysBatchGet)
+	require.Equal(t, int64(0), metrics2.Snapshot(execdetails.DefaultRUV2Weights()).ResourceManagerReadCnt)
+	require.Equal(t, int64(0), metrics2.Snapshot(execdetails.DefaultRUV2Weights()).ResourceManagerWriteCnt)
 }

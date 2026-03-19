@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pingcap/tidb/pkg/config"
 	"github.com/pingcap/tidb/pkg/kv"
 	"github.com/pingcap/tipb/go-tipb"
 	"github.com/stretchr/testify/require"
@@ -318,17 +317,7 @@ func TestCopRuntimeStats(t *testing.T) {
 }
 
 func TestRUV2MetricsSnapshotCalculateRUValues(t *testing.T) {
-	original := config.GetGlobalConfig()
-	t.Cleanup(func() {
-		if original != nil {
-			config.StoreGlobalConfig(original)
-		}
-	})
-
-	cfg := config.NewConfig()
-	cfg.RUV2 = config.DefaultRUV2Config()
-	config.StoreGlobalConfig(cfg)
-
+	weights := DefaultRUV2Weights()
 	snapshot := RUV2MetricsSnapshot{
 		ResultChunkCells:        1000,
 		ExecutorL1:              map[string]int64{"TableReader": 5, "Projection": 7},
@@ -354,7 +343,7 @@ func TestRUV2MetricsSnapshotCalculateRUValues(t *testing.T) {
 		TiKVRU:                            157258,
 	}
 
-	tidbRU := snapshot.CalculateRUValues()
+	tidbRU := snapshot.CalculateRUValues(weights)
 	tikvRU := snapshot.TiKVRU
 	totalRU := tidbRU + tikvRU
 	require.Equal(t, int64(114198), tidbRU)
@@ -363,55 +352,33 @@ func TestRUV2MetricsSnapshotCalculateRUValues(t *testing.T) {
 }
 
 func TestRUV2MetricsSnapshotFreezesRUValues(t *testing.T) {
-	original := config.GetGlobalConfig()
-	t.Cleanup(func() {
-		if original != nil {
-			config.StoreGlobalConfig(original)
-		}
-	})
-
-	cfg := config.NewConfig()
-	cfg.RUV2 = config.DefaultRUV2Config()
-	config.StoreGlobalConfig(cfg)
-
+	weights := DefaultRUV2Weights()
 	metrics := NewRUV2Metrics()
 	metrics.AddResultChunkCells(1000)
 	metrics.AddPlanCnt(2)
 
-	snapshot := metrics.Snapshot()
-	require.Equal(t, snapshot.TiDBRU, snapshot.CalculateRUValues())
+	snapshot := metrics.Snapshot(weights)
+	require.Equal(t, snapshot.TiDBRU, snapshot.CalculateRUValues(weights))
 
-	updated := config.NewConfig()
-	updated.RUV2 = config.DefaultRUV2Config()
-	updated.RUV2.ResultChunkCells *= 10
-	updated.RUV2.PlanCnt *= 10
-	config.StoreGlobalConfig(updated)
+	updated := weights
+	updated.ResultChunkCells *= 10
+	updated.PlanCnt *= 10
 
-	require.Equal(t, snapshot.TiDBRU, snapshot.CalculateRUValues())
+	require.Equal(t, snapshot.TiDBRU, snapshot.CalculateRUValues(updated))
 
-	freshSnapshot := metrics.Snapshot()
+	freshSnapshot := metrics.Snapshot(updated)
 	require.NotEqual(t, snapshot.TiDBRU, freshSnapshot.TiDBRU)
-	require.Equal(t, freshSnapshot.TiDBRU, freshSnapshot.CalculateRUValues())
+	require.Equal(t, freshSnapshot.TiDBRU, freshSnapshot.CalculateRUValues(updated))
 }
 
 func TestFormatRUV2MetricsIncludesRUValuesFirst(t *testing.T) {
-	original := config.GetGlobalConfig()
-	t.Cleanup(func() {
-		if original != nil {
-			config.StoreGlobalConfig(original)
-		}
-	})
-
-	cfg := config.NewConfig()
-	cfg.RUV2 = config.DefaultRUV2Config()
-	config.StoreGlobalConfig(cfg)
-
+	weights := DefaultRUV2Weights()
 	formatted := FormatRUV2Metrics(RUV2MetricsSnapshot{
 		ResultChunkCells:                 1000,
 		ResourceManagerWriteCnt:          20,
 		TiKVCoprocessorExecutorWorkTotal: map[string]int64{"BatchTopN": 10},
 		TiKVRU:                           10987,
-	})
+	}, weights)
 
 	require.Contains(t, formatted, "tidb_ru:")
 	require.Contains(t, formatted, "tikv_ru:")

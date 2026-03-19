@@ -396,7 +396,7 @@ func TestSlowLogFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	executor.SetSlowLogItems(execStmt, txnTS, logItems.HasMoreResults, actual)
-	logItems.RUV2Metrics = seVar.RUV2Metrics.Snapshot()
+	logItems.RUV2Metrics = seVar.RUV2Metrics.Snapshot(seVar.RUV2Weights())
 	logItems.RUV2Metrics.TiKVRU = ruDetails.TiKVRUV2()
 	compareSlowLogItems(t, logItems, actual)
 }

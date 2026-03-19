@@ -22,11 +22,46 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-
-	"github.com/pingcap/tidb/pkg/config"
 )
 
 type ruv2MetricsKeyType struct{}
+
+// RUV2Weights contains the TiDB-side RU v2 weights needed to calculate scaled
+// statement RU values.
+type RUV2Weights struct {
+	RUScale float64
+
+	ResultChunkCells        float64
+	ExecutorL1              float64
+	ExecutorL2              float64
+	ExecutorL3              float64
+	ExecutorL5InsertRows    float64
+	PlanCnt                 float64
+	PlanDeriveStatsPaths    float64
+	ResourceManagerReadCnt  float64
+	ResourceManagerWriteCnt float64
+	SessionParserTotal      float64
+	TxnCnt                  float64
+}
+
+// DefaultRUV2Weights returns the built-in default RU v2 weights.
+func DefaultRUV2Weights() RUV2Weights {
+	return RUV2Weights{
+		RUScale: 5697.054498,
+
+		ResultChunkCells:        0.00010000,
+		ExecutorL1:              0.00013278,
+		ExecutorL2:              0.00000383,
+		ExecutorL3:              0.00141739,
+		ExecutorL5InsertRows:    0.00472572,
+		PlanCnt:                 0.15392217,
+		PlanDeriveStatsPaths:    0.24968182,
+		ResourceManagerReadCnt:  0.02072003,
+		ResourceManagerWriteCnt: 0.07179779,
+		SessionParserTotal:      0.19230499,
+		TxnCnt:                  0.03013709,
+	}
+}
 
 // RUV2MetricsCtxKey is used to carry statement-level RUv2 metrics in context.Context.
 var RUV2MetricsCtxKey = ruv2MetricsKeyType{}
@@ -164,8 +199,9 @@ func (m *RUV2Metrics) AddTiKVCoprocessorWorkTotal(label string, delta int64) {
 	addRUV2LabelCounter(&m.tikvCoprocessorWorkTotal, label, delta)
 }
 
-// Snapshot returns a copy of metrics for reporting.
-func (m *RUV2Metrics) Snapshot() RUV2MetricsSnapshot {
+// Snapshot returns a copy of metrics for reporting and freezes TiDBRU using the
+// supplied weights.
+func (m *RUV2Metrics) Snapshot(weights RUV2Weights) RUV2MetricsSnapshot {
 	if m == nil {
 		return RUV2MetricsSnapshot{}
 	}
@@ -191,7 +227,7 @@ func (m *RUV2Metrics) Snapshot() RUV2MetricsSnapshot {
 		TiKVStorageProcessedKeysGet:       atomic.LoadInt64(&m.tikvStorageProcessedKeysGet),
 		TiKVCoprocessorExecutorWorkTotal:  snapshotRUV2LabelCounter(&m.tikvCoprocessorWorkTotal),
 	}
-	snapshot.TiDBRU = snapshot.calculateRUValuesWithWeights(activeRUV2Config())
+	snapshot.TiDBRU = snapshot.calculateRUValuesWithWeights(weights)
 	snapshot.tiDBRUFrozen = true
 	return snapshot
 }
@@ -296,10 +332,8 @@ func (s *RUV2MetricsSnapshot) Merge(other RUV2MetricsSnapshot) {
 	if s == nil {
 		return
 	}
-	var mergedTiDBRU int64
-	if s.tiDBRUFrozen || other.tiDBRUFrozen {
-		mergedTiDBRU = s.CalculateRUValues() + other.CalculateRUValues()
-	}
+	freezeTiDBRU := s.tiDBRUFrozen && other.tiDBRUFrozen
+	mergedTiDBRU := s.TiDBRU + other.TiDBRU
 	s.ResultChunkCells += other.ResultChunkCells
 	s.ExecutorL5InsertRows += other.ExecutorL5InsertRows
 	s.PlanCnt += other.PlanCnt
@@ -319,9 +353,12 @@ func (s *RUV2MetricsSnapshot) Merge(other RUV2MetricsSnapshot) {
 	s.ExecutorL2 = mergeRUV2LabelMap(s.ExecutorL2, other.ExecutorL2)
 	s.ExecutorL3 = mergeRUV2LabelMap(s.ExecutorL3, other.ExecutorL3)
 	s.TiKVCoprocessorExecutorWorkTotal = mergeRUV2LabelMap(s.TiKVCoprocessorExecutorWorkTotal, other.TiKVCoprocessorExecutorWorkTotal)
-	if s.tiDBRUFrozen || other.tiDBRUFrozen {
+	if freezeTiDBRU {
 		s.TiDBRU = mergedTiDBRU
 		s.tiDBRUFrozen = true
+	} else {
+		s.TiDBRU = 0
+		s.tiDBRUFrozen = false
 	}
 }
 
@@ -340,22 +377,14 @@ func mergeRUV2LabelMap(dst, src map[string]int64) map[string]int64 {
 
 // CalculateRUValues calculates the TiDB RU from the snapshot.
 // The returned value is a scaled integer.
-func (s RUV2MetricsSnapshot) CalculateRUValues() (tidbRU int64) {
+func (s RUV2MetricsSnapshot) CalculateRUValues(weights RUV2Weights) (tidbRU int64) {
 	if s.tiDBRUFrozen {
 		return s.TiDBRU
 	}
-	return s.calculateRUValuesWithWeights(activeRUV2Config())
+	return s.calculateRUValuesWithWeights(weights)
 }
 
-func activeRUV2Config() config.RUV2Config {
-	weights := config.DefaultRUV2Config()
-	if cfg := config.GetGlobalConfig(); cfg != nil {
-		weights = cfg.RUV2
-	}
-	return weights
-}
-
-func (s RUV2MetricsSnapshot) calculateRUValuesWithWeights(weights config.RUV2Config) (tidbRU int64) {
+func (s RUV2MetricsSnapshot) calculateRUValuesWithWeights(weights RUV2Weights) (tidbRU int64) {
 	tidbRUFloat :=
 		float64(s.ResultChunkCells)*weights.ResultChunkCells +
 			float64(sumRUV2LabelMap(s.ExecutorL1))*weights.ExecutorL1 +
@@ -371,7 +400,7 @@ func (s RUV2MetricsSnapshot) calculateRUValuesWithWeights(weights config.RUV2Con
 
 	scale := weights.RUScale
 	if scale == 0 {
-		scale = config.DefaultRUV2Config().RUScale
+		scale = DefaultRUV2Weights().RUScale
 	}
 	tidbRU = int64(tidbRUFloat * scale)
 	return
@@ -389,7 +418,7 @@ func sumRUV2LabelMap(values map[string]int64) int64 {
 }
 
 // FormatRUV2Metrics formats RUv2 metrics into a compact string.
-func FormatRUV2Metrics(snapshot RUV2MetricsSnapshot) string {
+func FormatRUV2Metrics(snapshot RUV2MetricsSnapshot, weights RUV2Weights) string {
 	if snapshot.IsZero() {
 		return ""
 	}
@@ -412,7 +441,7 @@ func FormatRUV2Metrics(snapshot RUV2MetricsSnapshot) string {
 		}
 	}
 
-	tidbRU := snapshot.CalculateRUValues()
+	tidbRU := snapshot.CalculateRUValues(weights)
 	tikvRU := snapshot.TiKVRU
 	totalRU := tidbRU + tikvRU
 	appendIntAlways("total_ru", totalRU)
