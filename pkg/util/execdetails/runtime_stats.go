@@ -986,7 +986,7 @@ type RURuntimeStats struct {
 }
 
 // String implements the RuntimeStats interface.
-func (e *RURuntimeStats) String() string {
+func (*RURuntimeStats) String() string {
 	/*  // Original RU v1 output logic, disabled in favor of RU v2.
 	if e.RUDetails != nil {
 		buf := bytes.NewBuffer(make([]byte, 0, 8))
