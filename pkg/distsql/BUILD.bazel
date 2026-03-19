@@ -25,7 +25,6 @@ go_library(
         "//pkg/planner/util",
         "//pkg/sessionctx/vardef",
         "//pkg/store/copr",
-        "//pkg/store/driver/txn",
         "//pkg/tablecodec",
         "//pkg/telemetry",
         "//pkg/types",
