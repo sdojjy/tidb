@@ -339,7 +339,7 @@ type RUV2Config struct {
 	// It is intentionally chosen to match legacy RU values for compatibility.
 	RUScale float64 `toml:"ru-scale" json:"ru-scale"`
 
-	ResultChunkRows         float64 `toml:"result-chunk-rows" json:"result-chunk-rows"`
+	ResultChunkCells        float64 `toml:"result-chunk-cells" json:"result-chunk-cells"`
 	ExecutorL1              float64 `toml:"executor-l1" json:"executor-l1"`
 	ExecutorL2              float64 `toml:"executor-l2" json:"executor-l2"`
 	ExecutorL3              float64 `toml:"executor-l3" json:"executor-l3"`
@@ -357,7 +357,7 @@ func DefaultRUV2Config() RUV2Config {
 	return RUV2Config{
 		RUScale: 5697.054498,
 
-		ResultChunkRows:         0.00010000,
+		ResultChunkCells:        0.00010000,
 		ExecutorL1:              0.00013278,
 		ExecutorL2:              0.00000383,
 		ExecutorL3:              0.00141739,

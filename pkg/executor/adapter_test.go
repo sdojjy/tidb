@@ -470,7 +470,7 @@ func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
 	goCtx := execdetails.ContextWithInitializedExecDetails(context.Background())
 	sessVars.RUV2Metrics = execdetails.RUV2MetricsFromContext(goCtx)
 	require.NotNil(t, sessVars.RUV2Metrics)
-	sessVars.RUV2Metrics.AddResultChunkRows(100)
+	sessVars.RUV2Metrics.AddResultChunkCells(100)
 	sessVars.RUV2Metrics.AddPlanCnt(2)
 	sessVars.RUV2Metrics.AddSessionParserTotal(3)
 

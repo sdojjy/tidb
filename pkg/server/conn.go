@@ -2403,13 +2403,13 @@ func (cc *clientConn) writeChunks(ctx context.Context, rs resultset.ResultSet, b
 	}
 	totalRows := 0
 	defer func() {
-		metrics.RUV2ResultChunkRows.Add(float64(totalRows * len(rs.Columns())))
+		metrics.RUV2ResultChunkCells.Add(float64(totalRows * len(rs.Columns())))
 		ruv2Metrics := execdetails.RUV2MetricsFromContext(ctx)
 		if ruv2Metrics == nil {
 			ruv2Metrics = cc.ctx.GetSessionVars().RUV2Metrics
 		}
 		if ruv2Metrics != nil {
-			ruv2Metrics.AddResultChunkRows(int64(totalRows) * int64(len(rs.Columns())))
+			ruv2Metrics.AddResultChunkCells(int64(totalRows) * int64(len(rs.Columns())))
 		}
 	}()
 	for {

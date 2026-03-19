@@ -441,7 +441,7 @@ engines = ["tikv", "tiflash", "tidb"]
 # It is intentionally chosen to match legacy RU values for compatibility.
 ru-scale = 5697.054498
 
-result-chunk-rows = 0.00010000
+result-chunk-cells = 0.00010000
 executor-l1 = 0.00013278
 executor-l2 = 0.00000383
 executor-l3 = 0.00141739

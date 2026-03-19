@@ -330,7 +330,7 @@ func TestRUV2MetricsSnapshotCalculateRUValues(t *testing.T) {
 	config.StoreGlobalConfig(cfg)
 
 	snapshot := RUV2MetricsSnapshot{
-		ResultChunkRows:         1000,
+		ResultChunkCells:        1000,
 		ExecutorL1:              map[string]int64{"TableReader": 5, "Projection": 7},
 		ExecutorL2:              map[string]int64{"Selection": 11},
 		ExecutorL3:              map[string]int64{"HashJoin": 13},
@@ -375,7 +375,7 @@ func TestRUV2MetricsSnapshotFreezesRUValues(t *testing.T) {
 	config.StoreGlobalConfig(cfg)
 
 	metrics := NewRUV2Metrics()
-	metrics.AddResultChunkRows(1000)
+	metrics.AddResultChunkCells(1000)
 	metrics.AddPlanCnt(2)
 
 	snapshot := metrics.Snapshot()
@@ -383,7 +383,7 @@ func TestRUV2MetricsSnapshotFreezesRUValues(t *testing.T) {
 
 	updated := config.NewConfig()
 	updated.RUV2 = config.DefaultRUV2Config()
-	updated.RUV2.ResultChunkRows *= 10
+	updated.RUV2.ResultChunkCells *= 10
 	updated.RUV2.PlanCnt *= 10
 	config.StoreGlobalConfig(updated)
 
@@ -407,7 +407,7 @@ func TestFormatRUV2MetricsIncludesRUValuesFirst(t *testing.T) {
 	config.StoreGlobalConfig(cfg)
 
 	formatted := FormatRUV2Metrics(RUV2MetricsSnapshot{
-		ResultChunkRows:                  1000,
+		ResultChunkCells:                 1000,
 		ResourceManagerWriteCnt:          20,
 		TiKVCoprocessorExecutorWorkTotal: map[string]int64{"BatchTopN": 10},
 		TiKVRU:                           10987,

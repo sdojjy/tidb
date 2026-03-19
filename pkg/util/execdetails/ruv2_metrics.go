@@ -42,7 +42,7 @@ func RUV2MetricsFromContext(ctx context.Context) *RUV2Metrics {
 
 // RUV2Metrics stores statement-level RUv2 metrics.
 type RUV2Metrics struct {
-	resultChunkRows int64
+	resultChunkCells int64
 
 	executorL1 sync.Map
 	executorL2 sync.Map
@@ -71,9 +71,9 @@ func NewRUV2Metrics() *RUV2Metrics {
 	return &RUV2Metrics{}
 }
 
-// AddResultChunkRows records result rows written by the current statement.
-func (m *RUV2Metrics) AddResultChunkRows(delta int64) {
-	atomic.AddInt64(&m.resultChunkRows, delta)
+// AddResultChunkCells records result cells written by the current statement.
+func (m *RUV2Metrics) AddResultChunkCells(delta int64) {
+	atomic.AddInt64(&m.resultChunkCells, delta)
 }
 
 // AddExecutorMetric records a statement-level executor metric for the given RUv2 level.
@@ -172,7 +172,7 @@ func (m *RUV2Metrics) Snapshot() RUV2MetricsSnapshot {
 	readCnt := atomic.LoadInt64(&m.resourceManagerReadCnt)
 	writeCnt := atomic.LoadInt64(&m.resourceManagerWriteCnt)
 	snapshot := RUV2MetricsSnapshot{
-		ResultChunkRows:                   atomic.LoadInt64(&m.resultChunkRows),
+		ResultChunkCells:                  atomic.LoadInt64(&m.resultChunkCells),
 		ExecutorL1:                        snapshotRUV2LabelCounter(&m.executorL1),
 		ExecutorL2:                        snapshotRUV2LabelCounter(&m.executorL2),
 		ExecutorL3:                        snapshotRUV2LabelCounter(&m.executorL3),
@@ -236,7 +236,7 @@ func snapshotRUV2LabelCounter(counter *ruv2LabelCounter) map[string]int64 {
 
 // RUV2MetricsSnapshot is a read-only copy of RUv2 metrics.
 type RUV2MetricsSnapshot struct {
-	ResultChunkRows int64
+	ResultChunkCells int64
 
 	ExecutorL1 map[string]int64
 	ExecutorL2 map[string]int64
@@ -269,7 +269,7 @@ type RUV2MetricsSnapshot struct {
 
 // IsZero checks whether all metrics are zero.
 func (s RUV2MetricsSnapshot) IsZero() bool {
-	return s.ResultChunkRows == 0 &&
+	return s.ResultChunkCells == 0 &&
 		len(s.ExecutorL1) == 0 &&
 		len(s.ExecutorL2) == 0 &&
 		len(s.ExecutorL3) == 0 &&
@@ -300,7 +300,7 @@ func (s *RUV2MetricsSnapshot) Merge(other RUV2MetricsSnapshot) {
 	if s.tiDBRUFrozen || other.tiDBRUFrozen {
 		mergedTiDBRU = s.CalculateRUValues() + other.CalculateRUValues()
 	}
-	s.ResultChunkRows += other.ResultChunkRows
+	s.ResultChunkCells += other.ResultChunkCells
 	s.ExecutorL5InsertRows += other.ExecutorL5InsertRows
 	s.PlanCnt += other.PlanCnt
 	s.PlanDeriveStatsPaths += other.PlanDeriveStatsPaths
@@ -357,7 +357,7 @@ func activeRUV2Config() config.RUV2Config {
 
 func (s RUV2MetricsSnapshot) calculateRUValuesWithWeights(weights config.RUV2Config) (tidbRU int64) {
 	tidbRUFloat :=
-		float64(s.ResultChunkRows)*weights.ResultChunkRows +
+		float64(s.ResultChunkCells)*weights.ResultChunkCells +
 			float64(sumRUV2LabelMap(s.ExecutorL1))*weights.ExecutorL1 +
 			float64(sumRUV2LabelMap(s.ExecutorL2))*weights.ExecutorL2 +
 			float64(sumRUV2LabelMap(s.ExecutorL3))*weights.ExecutorL3 +
@@ -419,7 +419,7 @@ func FormatRUV2Metrics(snapshot RUV2MetricsSnapshot) string {
 	appendIntAlways("tidb_ru", tidbRU)
 	appendIntAlways("tikv_ru", tikvRU)
 
-	appendInt("result_chunk_rows", snapshot.ResultChunkRows)
+	appendInt("result_chunk_cells", snapshot.ResultChunkCells)
 	appendMap("executor_l1", snapshot.ExecutorL1)
 	appendMap("executor_l2", snapshot.ExecutorL2)
 	appendMap("executor_l3", snapshot.ExecutorL3)
