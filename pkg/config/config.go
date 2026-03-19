@@ -339,10 +339,21 @@ type RUV2Config struct {
 	// It is intentionally chosen to match legacy RU values for compatibility.
 	RUScale float64 `toml:"ru-scale" json:"ru-scale"`
 
-	ResultChunkCells        float64 `toml:"result-chunk-cells" json:"result-chunk-cells"`
-	ExecutorL1              float64 `toml:"executor-l1" json:"executor-l1"`
-	ExecutorL2              float64 `toml:"executor-l2" json:"executor-l2"`
-	ExecutorL3              float64 `toml:"executor-l3" json:"executor-l3"`
+	// ResultChunkCells is the weight for cells materialized into result chunks.
+	ResultChunkCells float64 `toml:"result-chunk-cells" json:"result-chunk-cells"`
+	// ExecutorL1 is the weight for fast-path executors that scale by cells:
+	// BatchPointGet, PointGet, and Limit.
+	ExecutorL1 float64 `toml:"executor-l1" json:"executor-l1"`
+	// ExecutorL2 is the weight for general executors, including HashAgg,
+	// HashJoin, IndexLookUpJoin, IndexLookUpExecutor, IndexReaderExecutor,
+	// MemTableReaderExec, SelectionExec, TableDualExec, TableReaderExecutor,
+	// UnionScanExec, and SelectLockExec.
+	ExecutorL2 float64 `toml:"executor-l2" json:"executor-l2"`
+	// ExecutorL3 is the weight for heavier operators: Sort and StreamAgg.
+	ExecutorL3 float64 `toml:"executor-l3" json:"executor-l3"`
+	// ExecutorL5InsertRows is the per-row weight for insert work. Level 4 is
+	// intentionally unused today because only L1/L2/L3 executor groups and this
+	// insert-specific tier are currently modeled.
 	ExecutorL5InsertRows    float64 `toml:"executor-l5-insert-rows" json:"executor-l5-insert-rows"`
 	PlanCnt                 float64 `toml:"plan-cnt" json:"plan-cnt"`
 	PlanDeriveStatsPaths    float64 `toml:"plan-derive-stats-paths" json:"plan-derive-stats-paths"`
