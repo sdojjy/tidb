@@ -397,8 +397,29 @@ func TestSlowLogFormat(t *testing.T) {
 
 	executor.SetSlowLogItems(execStmt, txnTS, logItems.HasMoreResults, actual)
 	logItems.RUV2Metrics = seVar.RUV2Metrics.Snapshot(seVar.RUV2Weights())
-	logItems.RUV2Metrics.TiKVRU = ruDetails.TiKVRUV2()
+	logItems.RUV2Metrics.TiKVRU = int64(ruDetails.TiKVRUV2())
+	logItems.RUV2Metrics.TiFlashRU = int64(ruDetails.TiflashRU())
 	compareSlowLogItems(t, logItems, actual)
+}
+
+func TestSlowLogFormatIncludesTiFlashRUInRUV2Metrics(t *testing.T) {
+	seVar := variable.NewSessionVars(nil)
+	logItems := &variable.SlowQueryLogItems{
+		SQL:        "select 1",
+		Digest:     "digest",
+		TimeTotal:  time.Second,
+		Succ:       true,
+		ExecDetail: &execdetails.ExecDetails{},
+		UsedStats:  &stmtctx.UsedStatsInfo{},
+		RUDetails:  util.NewRUDetailsWith(0, 0, 0),
+		RUV2Metrics: execdetails.RUV2MetricsSnapshot{
+			TiKVRU:    100,
+			TiFlashRU: 50,
+		},
+	}
+
+	logString := seVar.SlowLogFormat(logItems)
+	require.Contains(t, logString, "# RUv2_metrics: total_ru:150, tidb_ru:0, tikv_ru:100, tiflash_ru:50")
 }
 
 func compareSlowLogItems(t *testing.T, expected, actual *variable.SlowQueryLogItems) {

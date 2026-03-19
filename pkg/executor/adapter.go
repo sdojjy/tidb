@@ -1710,16 +1710,15 @@ func (a *ExecStmt) finalizeStatementRUV2Metrics() {
 
 	weights := sessVars.RUV2Weights()
 	tidbRU := sessVars.RUV2Metrics.Snapshot(weights).CalculateRUValues(weights)
-	ruDetail.AddTiDBRUV2(float64(tidbRU - ruDetail.TiDBRUV2()))
 
 	dctx := a.Ctx.GetDistSQLCtx()
 	if dctx == nil || dctx.RUConsumptionReporter == nil || len(dctx.ResourceGroupName) == 0 {
 		return
 	}
 	if tikvRU := ruDetail.TiKVRUV2(); tikvRU > 0 {
-		dctx.RUConsumptionReporter.ReportTiKVRUV2Consumption(dctx.ResourceGroupName, float64(tikvRU))
+		dctx.RUConsumptionReporter.ReportTiKVRUV2Consumption(dctx.ResourceGroupName, tikvRU)
 	}
-	if tidbRU := ruDetail.TiDBRUV2(); tidbRU > 0 {
+	if tidbRU > 0 {
 		dctx.RUConsumptionReporter.ReportTiDBRUV2Consumption(dctx.ResourceGroupName, float64(tidbRU))
 	}
 }
