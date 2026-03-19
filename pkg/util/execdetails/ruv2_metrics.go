@@ -297,6 +297,8 @@ type RUV2MetricsSnapshot struct {
 
 	// TiKVRU is the TiKV RU v2 value (scaled integer) calculated in client-go and stored in RUDetails.
 	TiKVRU int64
+	// TiFlashRU is the TiFlash RU value (scaled integer after truncation) calculated in client-go and stored in RUDetails.
+	TiFlashRU int64
 	// TiDBRU is the TiDB RU v2 value (scaled integer) frozen at snapshot creation time.
 	TiDBRU int64
 
@@ -324,6 +326,7 @@ func (s RUV2MetricsSnapshot) IsZero() bool {
 		s.TiKVStorageProcessedKeysGet == 0 &&
 		len(s.TiKVCoprocessorExecutorWorkTotal) == 0 &&
 		s.TiKVRU == 0 &&
+		s.TiFlashRU == 0 &&
 		s.TiDBRU == 0
 }
 
@@ -349,6 +352,7 @@ func (s *RUV2MetricsSnapshot) Merge(other RUV2MetricsSnapshot) {
 	s.TiKVStorageProcessedKeysBatchGet += other.TiKVStorageProcessedKeysBatchGet
 	s.TiKVStorageProcessedKeysGet += other.TiKVStorageProcessedKeysGet
 	s.TiKVRU += other.TiKVRU
+	s.TiFlashRU += other.TiFlashRU
 	s.ExecutorL1 = mergeRUV2LabelMap(s.ExecutorL1, other.ExecutorL1)
 	s.ExecutorL2 = mergeRUV2LabelMap(s.ExecutorL2, other.ExecutorL2)
 	s.ExecutorL3 = mergeRUV2LabelMap(s.ExecutorL3, other.ExecutorL3)
@@ -382,6 +386,11 @@ func (s RUV2MetricsSnapshot) CalculateRUValues(weights RUV2Weights) (tidbRU int6
 		return s.TiDBRU
 	}
 	return s.calculateRUValuesWithWeights(weights)
+}
+
+// TotalRU returns the statement RU v2 total as TiDB + TiKV + TiFlash.
+func (s RUV2MetricsSnapshot) TotalRU(weights RUV2Weights) int64 {
+	return s.CalculateRUValues(weights) + s.TiKVRU + s.TiFlashRU
 }
 
 func (s RUV2MetricsSnapshot) calculateRUValuesWithWeights(weights RUV2Weights) (tidbRU int64) {
@@ -443,10 +452,12 @@ func FormatRUV2Metrics(snapshot RUV2MetricsSnapshot, weights RUV2Weights) string
 
 	tidbRU := snapshot.CalculateRUValues(weights)
 	tikvRU := snapshot.TiKVRU
-	totalRU := tidbRU + tikvRU
+	tiflashRU := snapshot.TiFlashRU
+	totalRU := snapshot.TotalRU(weights)
 	appendIntAlways("total_ru", totalRU)
 	appendIntAlways("tidb_ru", tidbRU)
 	appendIntAlways("tikv_ru", tikvRU)
+	appendIntAlways("tiflash_ru", tiflashRU)
 
 	appendInt("result_chunk_cells", snapshot.ResultChunkCells)
 	appendMap("executor_l1", snapshot.ExecutorL1)

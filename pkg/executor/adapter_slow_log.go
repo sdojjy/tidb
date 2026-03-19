@@ -226,7 +226,8 @@ func SetSlowLogItems(a *ExecStmt, txnTS uint64, hasMoreResults bool, items *vari
 	var ruv2Snapshot execdetails.RUV2MetricsSnapshot
 	if sessVars.RUV2Metrics != nil {
 		ruv2Snapshot = sessVars.RUV2Metrics.Snapshot(sessVars.RUV2Weights())
-		ruv2Snapshot.TiKVRU = ruDetails.TiKVRUV2()
+		ruv2Snapshot.TiKVRU = int64(ruDetails.TiKVRUV2())
+		ruv2Snapshot.TiFlashRU = int64(ruDetails.TiflashRU())
 	}
 
 	binaryPlan := ""

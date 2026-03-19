@@ -443,7 +443,7 @@ func TestWriteSlowLog(t *testing.T) {
 	checkWriteSlowLog(true)
 }
 
-func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
+func TestFinishExecuteStmtReportsTiDBRUV2WithoutSyncingRUDetails(t *testing.T) {
 	original := config.GetGlobalConfig()
 	t.Cleanup(func() {
 		if original != nil {
@@ -477,7 +477,6 @@ func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
 	expected := sessVars.RUV2Metrics.Snapshot(sessVars.RUV2Weights()).CalculateRUValues(sessVars.RUV2Weights())
 	ruDetails := goCtx.Value(util.RUDetailsCtxKey).(*util.RUDetails)
 	ruDetails.AddTiKVRUV2(23456)
-	ruDetails.AddTiDBRUV2(12345)
 
 	execStmt := &executor.ExecStmt{
 		Ctx:      ctx,
@@ -486,7 +485,7 @@ func TestFinishExecuteStmtSyncsTiDBRUV2ToRUDetails(t *testing.T) {
 	}
 	execStmt.FinishExecuteStmt(0, nil, false)
 
-	require.Equal(t, expected, ruDetails.TiDBRUV2())
+	require.Equal(t, float64(23456), ruDetails.TiKVRUV2())
 	require.Equal(t, "rg1", reporter.tikvGroup)
 	require.Equal(t, float64(23456), reporter.tikvRUV2)
 	require.Equal(t, "rg1", reporter.tidbGroup)

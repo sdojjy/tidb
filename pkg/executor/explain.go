@@ -145,7 +145,8 @@ func (e *ExplainExec) executeAnalyzeExec(ctx context.Context) (err error) {
 				snapshot := ruv2Metrics.Snapshot(weights)
 				if ruDetailsRaw != nil {
 					ruDetails := ruDetailsRaw.(*clientutil.RUDetails)
-					snapshot.TiKVRU = ruDetails.TiKVRUV2()
+					snapshot.TiKVRU = int64(ruDetails.TiKVRUV2())
+					snapshot.TiFlashRU = int64(ruDetails.TiflashRU())
 				}
 				coll.RegisterStats(e.explain.TargetPlan.ID(), &execdetails.RUV2RuntimeStats{Snapshot: snapshot, Weights: weights})
 			}

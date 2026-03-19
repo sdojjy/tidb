@@ -1028,7 +1028,7 @@ type RUV2RuntimeStats struct {
 // String implements the RuntimeStats interface.
 func (e *RUV2RuntimeStats) String() string {
 	// Only output the total RU value, not the detailed ruv2 metrics.
-	totalRU := e.Snapshot.CalculateRUValues(e.Weights) + e.Snapshot.TiKVRU
+	totalRU := e.Snapshot.TotalRU(e.Weights)
 	if totalRU == 0 {
 		return ""
 	}

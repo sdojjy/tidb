@@ -341,14 +341,17 @@ func TestRUV2MetricsSnapshotCalculateRUValues(t *testing.T) {
 		TiKVStorageProcessedKeysBatchGet:  73,
 		TiKVStorageProcessedKeysGet:       79,
 		TiKVRU:                            157258,
+		TiFlashRU:                         24680,
 	}
 
 	tidbRU := snapshot.CalculateRUValues(weights)
 	tikvRU := snapshot.TiKVRU
-	totalRU := tidbRU + tikvRU
+	tiflashRU := snapshot.TiFlashRU
+	totalRU := snapshot.TotalRU(weights)
 	require.Equal(t, int64(114198), tidbRU)
 	require.Equal(t, int64(157258), tikvRU)
-	require.Equal(t, int64(271456), totalRU)
+	require.Equal(t, int64(24680), tiflashRU)
+	require.Equal(t, int64(296136), totalRU)
 }
 
 func TestRUV2MetricsSnapshotFreezesRUValues(t *testing.T) {
@@ -378,18 +381,33 @@ func TestFormatRUV2MetricsIncludesRUValuesFirst(t *testing.T) {
 		ResourceManagerWriteCnt:          20,
 		TiKVCoprocessorExecutorWorkTotal: map[string]int64{"BatchTopN": 10},
 		TiKVRU:                           10987,
+		TiFlashRU:                        246,
 	}, weights)
 
 	require.Contains(t, formatted, "tidb_ru:")
 	require.Contains(t, formatted, "tikv_ru:")
+	require.Contains(t, formatted, "tiflash_ru:")
 	require.Contains(t, formatted, "total_ru:")
 	require.True(t, strings.HasPrefix(formatted, "total_ru:"))
 
 	parts := strings.Split(formatted, ", ")
-	require.Len(t, parts, 6)
-	require.Equal(t, "total_ru:19737", parts[0])
+	require.Len(t, parts, 7)
+	require.Equal(t, "total_ru:19983", parts[0])
 	require.Equal(t, "tidb_ru:8750", parts[1])
 	require.Equal(t, "tikv_ru:10987", parts[2])
+	require.Equal(t, "tiflash_ru:246", parts[3])
+}
+
+func TestRUV2RuntimeStatsStringIncludesTiFlashRU(t *testing.T) {
+	stats := &RUV2RuntimeStats{
+		Snapshot: RUV2MetricsSnapshot{
+			TiKVRU:    200,
+			TiFlashRU: 300,
+		},
+		Weights: DefaultRUV2Weights(),
+	}
+
+	require.Equal(t, "RU:500.00", stats.String())
 }
 
 func TestCopRuntimeStatsForTiFlash(t *testing.T) {
