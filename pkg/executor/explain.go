@@ -27,6 +27,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/pkg/config"
+	"github.com/pingcap/tidb/pkg/domain"
 	"github.com/pingcap/tidb/pkg/executor/internal/exec"
 	"github.com/pingcap/tidb/pkg/planner/core"
 	"github.com/pingcap/tidb/pkg/util/chunk"
@@ -36,6 +37,7 @@ import (
 	"github.com/pingcap/tidb/pkg/util/memory"
 	"github.com/pingcap/tidb/pkg/util/size"
 	clientutil "github.com/tikv/client-go/v2/util"
+	rmclient "github.com/tikv/pd/client/resource_group/controller"
 	"go.uber.org/zap"
 )
 
@@ -133,20 +135,32 @@ func (e *ExplainExec) executeAnalyzeExec(ctx context.Context) (err error) {
 		}
 	}
 	// Register the RU runtime stats to the runtime stats collection after the analyze executor has been executed.
+	// Only one version is shown based on the keyspace's RU version setting.
 	if e.explain.Analyze && e.analyzeExec != nil && e.executed {
 		ruDetailsRaw := ctx.Value(clientutil.RUDetailsCtxKey)
-		if coll := e.Ctx().GetSessionVars().StmtCtx.RuntimeStatsColl; coll != nil && ruDetailsRaw != nil {
-			ruDetails := ruDetailsRaw.(*clientutil.RUDetails)
-			coll.RegisterStats(e.explain.TargetPlan.ID(), &execdetails.RURuntimeStats{RUDetails: ruDetails})
+		coll := e.Ctx().GetSessionVars().StmtCtx.RuntimeStatsColl
+		do, _ := e.Ctx().GetDomain().(*domain.Domain)
+		var ruVersion rmclient.RUVersion
+		if do != nil {
+			ruVersion = do.GetRUVersion()
+		} else {
+			ruVersion = rmclient.DefaultRUVersion
 		}
-		if coll := e.Ctx().GetSessionVars().StmtCtx.RuntimeStatsColl; coll != nil {
-			if ruv2Metrics := execdetails.RUV2MetricsFromContext(ctx); ruv2Metrics != nil {
-				snapshot := ruv2Metrics.Snapshot()
-				if ruDetailsRaw != nil {
-					ruDetails := ruDetailsRaw.(*clientutil.RUDetails)
-					snapshot.TiKVRU = ruDetails.TiKVRUV2()
+		if coll != nil {
+			// RU v1,v2 RU total only.
+			switch ruVersion {
+			case rmclient.RUVersionV1:
+				ruDetails := ruDetailsRaw.(*clientutil.RUDetails)
+				coll.RegisterStats(e.explain.TargetPlan.ID(), &execdetails.RURuntimeStats{RUDetails: ruDetails})
+			case rmclient.RUVersionV2:
+				if ruv2Metrics := execdetails.RUV2MetricsFromContext(ctx); ruv2Metrics != nil {
+					snapshot := ruv2Metrics.Snapshot()
+					if ruDetailsRaw != nil {
+						ruDetails := ruDetailsRaw.(*clientutil.RUDetails)
+						snapshot.TiKVRU = ruDetails.TiKVRUV2()
+					}
+					coll.RegisterStats(e.explain.TargetPlan.ID(), &execdetails.RUV2RuntimeStats{Snapshot: snapshot})
 				}
-				coll.RegisterStats(e.explain.TargetPlan.ID(), &execdetails.RUV2RuntimeStats{Snapshot: snapshot})
 			}
 		}
 	}
