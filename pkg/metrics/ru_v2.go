@@ -21,7 +21,7 @@ import (
 
 // RUv2 metrics.
 var (
-	RUV2ResultChunkRows         prometheus.Counter
+	RUV2ResultChunkCells        prometheus.Counter
 	RUV2ExecutorL1              *prometheus.CounterVec
 	RUV2ExecutorL2              *prometheus.CounterVec
 	RUV2ExecutorL3              *prometheus.CounterVec
@@ -44,12 +44,12 @@ var (
 
 // InitRUV2Metrics initializes RUv2 metrics.
 func InitRUV2Metrics() {
-	RUV2ResultChunkRows = metricscommon.NewCounter(
+	RUV2ResultChunkCells = metricscommon.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "tidb",
 			Subsystem: "ruv2",
-			Name:      "result_chunk_rows",
-			Help:      "Counter of result chunk rows (rows * cols) for RU v2.",
+			Name:      "result_chunk_cells",
+			Help:      "Counter of result chunk cells for RU v2.",
 		},
 	)
 

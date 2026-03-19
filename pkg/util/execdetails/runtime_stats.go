@@ -986,7 +986,7 @@ type RURuntimeStats struct {
 }
 
 // String implements the RuntimeStats interface.
-func (e *RURuntimeStats) String() string {
+func (*RURuntimeStats) String() string {
 	/*  // Original RU v1 output logic, disabled in favor of RU v2.
 	if e.RUDetails != nil {
 		buf := bytes.NewBuffer(make([]byte, 0, 8))
@@ -1022,12 +1022,13 @@ func (*RURuntimeStats) Tp() int {
 // RUV2RuntimeStats is a wrapper of statement-level RU v2 metrics.
 type RUV2RuntimeStats struct {
 	Snapshot RUV2MetricsSnapshot
+	Weights  RUV2Weights
 }
 
 // String implements the RuntimeStats interface.
 func (e *RUV2RuntimeStats) String() string {
 	// Only output the total RU value, not the detailed ruv2 metrics.
-	totalRU := e.Snapshot.CalculateRUValues() + e.Snapshot.TiKVRU
+	totalRU := e.Snapshot.CalculateRUValues(e.Weights) + e.Snapshot.TiKVRU
 	if totalRU == 0 {
 		return ""
 	}
@@ -1042,7 +1043,7 @@ func (e *RUV2RuntimeStats) Clone() RuntimeStats {
 	if e == nil {
 		return &RUV2RuntimeStats{}
 	}
-	return &RUV2RuntimeStats{Snapshot: e.Snapshot}
+	return &RUV2RuntimeStats{Snapshot: e.Snapshot, Weights: e.Weights}
 }
 
 // Merge implements the RuntimeStats interface.
@@ -1052,6 +1053,9 @@ func (e *RUV2RuntimeStats) Merge(other RuntimeStats) {
 	}
 	if tmp, ok := other.(*RUV2RuntimeStats); ok {
 		e.Snapshot.Merge(tmp.Snapshot)
+		if e.Weights == (RUV2Weights{}) {
+			e.Weights = tmp.Weights
+		}
 	}
 }
 

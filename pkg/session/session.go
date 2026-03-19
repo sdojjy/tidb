@@ -108,6 +108,7 @@ import (
 	"github.com/pingcap/tidb/pkg/statistics/handle/usage/indexusage"
 	kvstore "github.com/pingcap/tidb/pkg/store"
 	storeerr "github.com/pingcap/tidb/pkg/store/driver/error"
+	drivertxn "github.com/pingcap/tidb/pkg/store/driver/txn"
 	"github.com/pingcap/tidb/pkg/store/helper"
 	"github.com/pingcap/tidb/pkg/table"
 	"github.com/pingcap/tidb/pkg/table/tblctx"
@@ -3275,6 +3276,7 @@ func (s *session) GetDistSQLCtx() *distsqlctx.DistSQLContext {
 			KVVars:                 vars.KVVars,
 			KvExecCounter:          sc.KvExecCounter,
 			RUV2Metrics:            vars.RUV2Metrics,
+			RUV2RPCInterceptor:     drivertxn.NewStorageProcessedKeysRUV2RPCInterceptor(vars.RUV2Metrics),
 			SessionMemTracker:      vars.MemTracker,
 
 			Location:         sc.TimeZone(),
@@ -3327,6 +3329,10 @@ func (s *session) GetDistSQLCtx() *distsqlctx.DistSQLContext {
 	// Ref: https://github.com/pingcap/tidb/issues/61899
 	if dctx.RunawayChecker != sc.RunawayChecker {
 		dctx.RunawayChecker = sc.RunawayChecker
+	}
+	if dctx.RUV2Metrics != vars.RUV2Metrics {
+		dctx.RUV2Metrics = vars.RUV2Metrics
+		dctx.RUV2RPCInterceptor = drivertxn.NewStorageProcessedKeysRUV2RPCInterceptor(vars.RUV2Metrics)
 	}
 
 	return dctx

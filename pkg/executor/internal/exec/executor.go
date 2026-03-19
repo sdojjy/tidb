@@ -72,6 +72,16 @@ type ruv2ExecutorMetric struct {
 	useCells bool
 }
 
+// ruv2ExecutorMetricByType documents the current executor-to-level mapping used
+// by both RU v2 statement metrics and the configurable RU v2 weights.
+//
+// L1: BatchPointGet, PointGet, Limit.
+// L2: HashAgg, HashJoin, IndexLookUpJoin, IndexLookUpExecutor,
+// IndexReaderExecutor, MemTableReaderExec, SelectionExec, TableDualExec,
+// TableReaderExecutor, UnionScanExec, SelectLockExec.
+// L3: Sort, StreamAgg.
+// L4: intentionally unused today.
+// L5: reserved for insert-row accounting outside this executor map.
 var ruv2ExecutorMetricByType = map[string]ruv2ExecutorMetric{
 	"*executor.BatchPointGetExec":   {level: 1, label: "BatchPointGetExec", useCells: true},
 	"*executor.PointGetExecutor":    {level: 1, label: "PointGetExecutor", useCells: true},

@@ -28,9 +28,7 @@ import (
 	"github.com/pingcap/tidb/pkg/kv"
 	"github.com/pingcap/tidb/pkg/metrics"
 	"github.com/pingcap/tidb/pkg/sessionctx/vardef"
-	driver "github.com/pingcap/tidb/pkg/store/driver/txn"
 	"github.com/pingcap/tidb/pkg/types"
-	"github.com/pingcap/tidb/pkg/util/execdetails"
 	"github.com/pingcap/tidb/pkg/util/logutil"
 	"github.com/pingcap/tidb/pkg/util/topsql/stmtstats"
 	"github.com/pingcap/tidb/pkg/util/tracing"
@@ -80,7 +78,7 @@ func Select(ctx context.Context, dctx *distsqlctx.DistSQLContext, kvReq *kv.Requ
 	}
 
 	ctx = WithSQLKvExecCounterInterceptor(ctx, dctx.KvExecCounter)
-	ctx = WithRUV2MetricsInterceptor(ctx, dctx.RUV2Metrics)
+	ctx = WithRUV2MetricsInterceptor(ctx, dctx.RUV2RPCInterceptor)
 	option := &kv.ClientSendOption{
 		SessionMemTracker:          dctx.SessionMemTracker,
 		EnabledRateLimitAction:     enabledRateLimitAction,
@@ -180,7 +178,7 @@ func SelectWithRuntimeStats(ctx context.Context, dctx *distsqlctx.DistSQLContext
 func Analyze(ctx context.Context, client kv.Client, kvReq *kv.Request, vars any,
 	isRestrict bool, dctx *distsqlctx.DistSQLContext) (SelectResult, error) {
 	ctx = WithSQLKvExecCounterInterceptor(ctx, dctx.KvExecCounter)
-	ctx = WithRUV2MetricsInterceptor(ctx, dctx.RUV2Metrics)
+	ctx = WithRUV2MetricsInterceptor(ctx, dctx.RUV2RPCInterceptor)
 	failpoint.Inject("mockAnalyzeRequestWaitForCancel", func(val failpoint.Value) {
 		if val.(bool) {
 			<-ctx.Done()
@@ -295,9 +293,9 @@ func WithSQLKvExecCounterInterceptor(ctx context.Context, counter *stmtstats.KvE
 
 // WithRUV2MetricsInterceptor binds an interceptor for client-go to collect
 // statement-level RUv2 request counters and TiKV ExecDetailsV2-based metrics.
-func WithRUV2MetricsInterceptor(ctx context.Context, ruv2Metrics *execdetails.RUV2Metrics) context.Context {
-	if ruv2Metrics != nil {
-		return interceptor.WithRPCInterceptor(ctx, driver.NewStorageProcessedKeysRUV2RPCInterceptor(ruv2Metrics))
+func WithRUV2MetricsInterceptor(ctx context.Context, ruv2Interceptor interceptor.RPCInterceptor) context.Context {
+	if ruv2Interceptor != nil {
+		return interceptor.WithRPCInterceptor(ctx, ruv2Interceptor)
 	}
 	return ctx
 }

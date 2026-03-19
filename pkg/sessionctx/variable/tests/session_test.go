@@ -365,7 +365,7 @@ func TestSlowLogFormat(t *testing.T) {
 	ctx := context.WithValue(context.Background(), execdetails.StmtExecDetailKey,
 		&execdetails.StmtExecDetails{WriteSQLRespDuration: logItems.WriteSQLRespTotal})
 	seVar.RUV2Metrics = execdetails.NewRUV2Metrics()
-	seVar.RUV2Metrics.AddResultChunkRows(11)
+	seVar.RUV2Metrics.AddResultChunkCells(11)
 	seVar.RUV2Metrics.AddPlanCnt(2)
 	actual := executor.PrepareSlowLogItemsForRules(ctx, vardef.GlobalSlowLogRules.Load(), seVar)
 	childCtx := context.WithValue(ctx, util.ExecDetailsKey, &tikvExecDetail)
@@ -396,7 +396,7 @@ func TestSlowLogFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	executor.SetSlowLogItems(execStmt, txnTS, logItems.HasMoreResults, actual)
-	logItems.RUV2Metrics = seVar.RUV2Metrics.Snapshot()
+	logItems.RUV2Metrics = seVar.RUV2Metrics.Snapshot(seVar.RUV2Weights())
 	logItems.RUV2Metrics.TiKVRU = ruDetails.TiKVRUV2()
 	compareSlowLogItems(t, logItems, actual)
 }

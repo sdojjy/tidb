@@ -44,6 +44,7 @@ import (
 	"github.com/pingcap/tidb/pkg/sessionctx/vardef"
 	"github.com/pingcap/tidb/pkg/sessionctx/variable"
 	"github.com/pingcap/tidb/pkg/statistics/handle/usage/indexusage"
+	drivertxn "github.com/pingcap/tidb/pkg/store/driver/txn"
 	"github.com/pingcap/tidb/pkg/table/tblctx"
 	"github.com/pingcap/tidb/pkg/table/tblsession"
 	"github.com/pingcap/tidb/pkg/util/chunk"
@@ -255,6 +256,8 @@ func (c *Context) GetDistSQLCtx() *distsqlctx.DistSQLContext {
 		OriginalSQL:                          sc.OriginalSQL,
 		KVVars:                               vars.KVVars,
 		KvExecCounter:                        sc.KvExecCounter,
+		RUV2Metrics:                          vars.RUV2Metrics,
+		RUV2RPCInterceptor:                   drivertxn.NewStorageProcessedKeysRUV2RPCInterceptor(vars.RUV2Metrics),
 		SessionMemTracker:                    vars.MemTracker,
 		Location:                             sc.TimeZone(),
 		RuntimeStatsColl:                     sc.RuntimeStatsColl,

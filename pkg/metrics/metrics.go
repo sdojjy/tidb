@@ -326,7 +326,7 @@ func RegisterMetrics() {
 	prometheus.MustRegister(BindingCacheNumBindings)
 	prometheus.MustRegister(InternalSessions)
 	prometheus.MustRegister(ActiveUser)
-	prometheus.MustRegister(RUV2ResultChunkRows)
+	prometheus.MustRegister(RUV2ResultChunkCells)
 	prometheus.MustRegister(RUV2ExecutorL1)
 	prometheus.MustRegister(RUV2ExecutorL2)
 	prometheus.MustRegister(RUV2ExecutorL3)
